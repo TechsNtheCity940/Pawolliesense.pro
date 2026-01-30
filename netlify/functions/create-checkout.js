@@ -85,6 +85,9 @@ exports.handler = async function handler(event) {
     params.append('metadata[order_source]', 'pawollie-intake');
     if (itemIds.length) {
       params.append('metadata[item_ids]', itemIds.join(','));
+      params.append('metadata[primary_service]', itemIds[0]);
+    } else if (payload.service || payload.selected_service) {
+      params.append('metadata[primary_service]', String(payload.service || payload.selected_service));
     }
     if (payload.email) {
       params.append('customer_email', String(payload.email));

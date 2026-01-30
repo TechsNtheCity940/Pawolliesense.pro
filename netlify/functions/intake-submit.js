@@ -169,6 +169,8 @@ exports.handler = async function handler(event) {
       keepsake_notes: payload.k_notes || '',
       community_request: payload.pass_n_prints ? true : false,
       quick_tone: payload.qq_tone || '',
+      quick_prompt: payload.qq_prompt || '',
+      quick_context: payload.qq_context || '',
       relationship: payload.relationship || '',
       timezone: payload.timezone || '',
       selected_services: services,

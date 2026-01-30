@@ -241,9 +241,14 @@ img{max-width:100%;display:block}
   }
   .site-brand__tagline{
     line-height:1.3;
+    overflow:visible;
+    text-overflow:clip;
+    word-break:break-word;
+    max-width:100%;
   }
   .tagline{
     white-space:normal;
+    overflow-wrap:anywhere;
   }
   .hero-quote{
     width:min(180px, 84vw);
@@ -2348,7 +2353,35 @@ textarea{resize:vertical}
 }
 @media (max-width:640px){
   .pawmarks-menu-grid{
-    grid-template-columns:1fr;
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+    gap:8px;
+  }
+  .pawmarks-menu-card{
+    border-radius:14px;
+  }
+  .pawmarks-menu-media{
+    aspect-ratio:1 / 1;
+  }
+  .pawmarks-menu-meta{
+    padding:6px 6px 8px;
+    gap:2px;
+  }
+  .pawmarks-menu-card .pawmarks-title--serif{
+    font-size:.78rem;
+  }
+  .pawmarks-menu-card .pawmarks-title--script{
+    font-size:1.05rem;
+  }
+  .pawmarks-menu-card .pawmarks-title--caps{
+    font-size:.64rem;
+    letter-spacing:.12em;
+  }
+  .pawmarks-menu-card .pawmarks-title--soft{
+    font-size:.78rem;
+  }
+  .pawmarks-owner,
+  .pawmarks-tagline{
+    font-size:.68rem;
   }
 }
 .pawmarks-menu-card{
