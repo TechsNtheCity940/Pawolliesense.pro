@@ -189,9 +189,10 @@ img{max-width:100%;display:block}
 }
 
 .page-shell.with-tracks{
+  --track-w:160px;
   position:relative;
   min-height:100vh;
-  padding:40px 160px;
+  padding:40px var(--track-w);
 }
 .page-content{
   position:relative;
@@ -201,7 +202,7 @@ img{max-width:100%;display:block}
   position:absolute;
   top:0;
   bottom:0;
-  width:160px;
+  width:var(--track-w);
   background-image:url("/assets/border-track-transparent.png");
   background-repeat:repeat-y;
   background-position:center top;
@@ -216,11 +217,66 @@ img{max-width:100%;display:block}
 }
 @media (max-width:768px){
   .page-shell.with-tracks{
-    padding:20px 80px;
+    --track-w:80px;
+    padding:20px var(--track-w);
   }
   .track-border{
-    width:80px;
     opacity:.6;
+  }
+}
+@media (max-width:640px){
+  .page-shell.with-tracks{
+    --track-w:44px;
+    padding:16px var(--track-w);
+  }
+  .track-border{
+    background-size:100% auto;
+  }
+  .container{
+    padding:0 .9rem;
+  }
+  .site-brand__title,
+  .site-brand__tagline{
+    white-space:normal;
+  }
+  .site-brand__tagline{
+    line-height:1.3;
+  }
+  .tagline{
+    white-space:normal;
+  }
+  .hero-quote{
+    width:min(180px, 84vw);
+    margin:0 auto;
+    transform:none;
+    align-self:center;
+  }
+  .hero-title{
+    max-width:100%;
+  }
+  .section-lede{
+    max-width:100%;
+  }
+  .hero-actions{
+    justify-content:center;
+  }
+  .nav-grid{
+    grid-template-columns:1fr;
+  }
+  .nav-mini{
+    justify-content:center;
+  }
+  .home-aside,
+  .aside-stack,
+  .community-hero-aside{
+    justify-items:center;
+  }
+  .card,
+  .hero-card,
+  .cta-card{
+    width:100%;
+    margin-left:auto;
+    margin-right:auto;
   }
 }
 
