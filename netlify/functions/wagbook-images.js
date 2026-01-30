@@ -84,10 +84,7 @@ exports.handler = async function handler(event) {
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
-    const endpoint =
-      process.env.GEMINI_IMAGE_ENDPOINT ||
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
-
+    const apiKey = process.env.GEMINI_API_KEY; const endpoint = process.env.GEMINI_IMAGE_ENDPOINT;
     if (!apiKey || !endpoint) {
       const fallback = prompts.map((_, index) => referenceImages[index % referenceImages.length] || '');
       return jsonResponse(200, { images: fallback });
