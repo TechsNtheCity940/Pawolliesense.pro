@@ -7,8 +7,6 @@ declare global {
     pawollieInitServicePickButtons?: () => void;
     pawollieInitServicePreselectFromUrl?: () => void;
     pawollieInitPhotoBooth?: () => void;
-    pawollieInitCart?: () => void;
-    pawollieInitStripeCheckout?: () => void;
     pawollieInitCommunityGame?: () => void;
   }
 }

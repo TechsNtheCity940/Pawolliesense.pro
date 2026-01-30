@@ -1,36 +1,28 @@
 const ITEM_CATALOG = {
-  full_soul_profile: { name: 'Full Soul Discovery Profile', price: 30 },
-  behavior_spirit_scan: { name: 'Personality & Behavior Spirit Scan', price: 20 },
-  canine_birth_chart: { name: 'Canine Birth Chart', price: 15 },
-  past_life_pawprint: { name: 'Past-Life Pawprint Reading', price: 5 },
-  quick_quest: { name: 'Quick Quest', price: 5 },
-  pawollie_vision: { name: 'Pawollie Vision (Daily)', price: 4.99 },
-  pawsitive_pupdate: { name: 'Pawsitive Pupdate (Daily)', price: 4.99 }
+  full_spirit_pawfile: { name: 'Full Spirit Pawfile', price: 35 },
+  behavior_bond_guidance: { name: 'Behavior Bond Guidance', price: 40 },
+  pawmarks_pack: { name: 'Pawmarks Pack (Memorial & Keepsake Experience)', price: 45 },
+  pawmark_post: { name: 'Pawmark Post (Memorial Feed Post Only)', price: 15 },
+  star_chart: { name: 'Star Chart (Pet Astrology Insight)', price: 19 },
+  paw_reading: { name: 'Paw Reading (Pawprint Insight)', price: 19 },
+  pawollie_vision: { name: 'Pawollie Vision (Spirit Portrait)', price: 19 },
+  express_pawdate: { name: 'Express Pawdate', price: 9 },
+  quick_quest: { name: 'Quick Quest (One Question Insight)', price: 9 },
+  bond_spark: { name: 'Bond Spark (Mini Insight)', price: 9 },
+  all_paws_pack: { name: 'All-Paws Pack (Every Service Included)', price: 119 },
+  furmily_pack: { name: 'Furmily Pack (Multi-Pet Household Pack)', price: 79 }
 };
-
-const CORE_SERVICE_IDS = new Set([
-  'full_soul_profile',
-  'behavior_spirit_scan',
-  'canine_birth_chart',
-  'past_life_pawprint',
-  'quick_quest'
-]);
-const DAILY_SERVICE_IDS = new Set(['pawollie_vision', 'pawsitive_pupdate']);
 
 function buildLineItems(cart) {
   const items = [];
   const itemIds = [];
-  const hasCoreService = (cart || []).some((entry) => CORE_SERVICE_IDS.has(entry?.id));
 
   (cart || []).forEach((entry) => {
     const item = ITEM_CATALOG[entry?.id];
     if (!item) return;
     itemIds.push(entry.id);
     const quantity = Number(entry.quantity ?? 1) || 1;
-    const basePrice = DAILY_SERVICE_IDS.has(entry?.id)
-      ? (hasCoreService ? 2.99 : 4.99)
-      : item.price;
-    const unitAmount = Math.round(basePrice * 100);
+    const unitAmount = Math.round(item.price * 100);
     items.push({
       name: item.name,
       unitAmount,
@@ -62,25 +54,41 @@ exports.handler = async function handler(event) {
     }
 
     const payload = event.body ? JSON.parse(event.body) : {};
-    const { items: lineItems, itemIds } = buildLineItems(payload.cart);
+    const cart = Array.isArray(payload.cart)
+      ? payload.cart
+      : payload.service
+        ? [{ id: payload.service, quantity: 1 }]
+        : payload.selected_service
+          ? [{ id: payload.selected_service, quantity: 1 }]
+          : [];
+    const { items: lineItems, itemIds } = buildLineItems(cart);
 
     if (!lineItems.length) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'No valid items in cart.' }) };
+      return { statusCode: 400, body: JSON.stringify({ error: 'No valid items selected.' }) };
     }
 
     const origin = resolveOrigin(event.headers);
     const successUrl = process.env.STRIPE_SUCCESS_URL || `${origin}/thank-you`;
-    const cancelUrl = process.env.STRIPE_CANCEL_URL || `${origin}/cart`;
+    const cancelUrl = process.env.STRIPE_CANCEL_URL || `${origin}/intake`;
 
     const params = new URLSearchParams();
     params.append('mode', 'payment');
     params.append('payment_method_types[0]', 'card');
     params.append('success_url', successUrl);
     params.append('cancel_url', cancelUrl);
-    params.append('client_reference_id', `pawollie_${Date.now()}`);
-    params.append('metadata[order_source]', 'pawollie-cart');
+    if (payload.readingId) {
+      params.append('client_reference_id', String(payload.readingId));
+      params.append('metadata[reading_id]', String(payload.readingId));
+    } else {
+      params.append('client_reference_id', `pawollie_${Date.now()}`);
+    }
+    params.append('metadata[order_source]', 'pawollie-intake');
     if (itemIds.length) {
       params.append('metadata[item_ids]', itemIds.join(','));
+    }
+    if (payload.email) {
+      params.append('customer_email', String(payload.email));
+      params.append('metadata[email]', String(payload.email));
     }
     lineItems.forEach((item, index) => {
       params.append(`line_items[${index}][price_data][currency]`, 'usd');

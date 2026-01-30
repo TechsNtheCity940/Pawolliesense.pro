@@ -3,6 +3,28 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const WAGBOOK_PRICE = 40;
 
+const SERVICE_PRICES = {
+  full_spirit_pawfile: 35,
+  behavior_bond_guidance: 40,
+  pawmarks_pack: 45,
+  pawmark_post: 15,
+  star_chart: 19,
+  paw_reading: 19,
+  pawollie_vision: 19,
+  express_pawdate: 9,
+  quick_quest: 9,
+  bond_spark: 9,
+  all_paws_pack: 119,
+  furmily_pack: 79
+};
+
+function calculateTotalPrice(services, fallback = 0) {
+  if (!Array.isArray(services) || !services.length) {
+    return Number(fallback) || 0;
+  }
+  return services.reduce((sum, service) => sum + (SERVICE_PRICES[service] || 0), 0);
+}
+
 function jsonResponse(statusCode, body) {
   return {
     statusCode,
@@ -128,6 +150,7 @@ exports.handler = async function handler(event) {
     const email = payload.email || '';
     const petName = payload.pet_name || payload.petName || '';
     const services = normalizeServices(payload);
+    const totalPrice = calculateTotalPrice(services, payload.estimated_total);
 
     if (!email || !petName || !guardianName || !services.length) {
       return jsonResponse(400, { error: 'Missing required intake fields.' });
@@ -181,6 +204,7 @@ exports.handler = async function handler(event) {
       services,
       consent_acknowledged: toBoolean(payload.consent),
       notes: payload.k_notes || null,
+      total_price: totalPrice,
       wagbook_requested: wagbookSelected,
       wagbook_character_names: payload.wagbook_character_names || null,
       wagbook_storyline: payload.wagbook_storyline || null,
@@ -189,7 +213,7 @@ exports.handler = async function handler(event) {
       wagbook_price: wagbookSelected ? WAGBOOK_PRICE : 0
     });
 
-    return jsonResponse(200, { ok: true, readingId: reading.id });
+    return jsonResponse(200, { ok: true, readingId: reading.id, total_price: totalPrice });
   } catch (error) {
     console.error('Intake submit failed', error.message);
     return jsonResponse(500, { error: error.message || 'Unable to submit intake.' });

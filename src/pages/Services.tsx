@@ -7,7 +7,6 @@ const Services: React.FC = () => {
     <SiteLayout
       footerLinks={[
         { label: 'FAQ', to: '/faq' },
-        { label: 'Cart', to: '/cart' },
         { label: 'Intake', to: '/intake' }
       ]}
     >
@@ -18,8 +17,7 @@ const Services: React.FC = () => {
             <h1 className="hero-title">Services</h1>
             <p className="section-lede">Choose the reading that best matches your questions and your companion&apos;s needs.</p>
             <div className="hero-actions">
-              <Link className="cta" to="/cart">Go to Cart</Link>
-              <Link className="cta secondary" to="/intake">Start the Intake</Link>
+              <Link className="cta" to="/intake">Start the Intake</Link>
             </div>
           </div>
           <div className="stack">
@@ -214,10 +212,9 @@ const Services: React.FC = () => {
         <div className="container">
           <div className="cta-panel">
             <h2 className="section-title">Ready to choose?</h2>
-            <p className="section-lede">Proceed to the cart for payment, then complete your intake.</p>
+            <p className="section-lede">Complete the intake first, then you will be routed to secure payment.</p>
             <div className="hero-actions">
-              <Link className="cta" to="/cart">Go to Cart</Link>
-              <Link className="cta secondary" to="/intake">Open Intake Form</Link>
+              <Link className="cta" to="/intake">Open Intake Form</Link>
             </div>
             <p className="mini">
               Pawollie Sense provides intuitive, symbolic, and reflective insight intended to support emotional understanding and connection. Services are not a substitute for

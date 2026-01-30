@@ -209,10 +209,11 @@ const Intake: React.FC = () => {
   const [quickTone, setQuickTone] = useState('calm');
   const [furmilyCount, setFurmilyCount] = useState(2);
   const [keepsakes, setKeepsakes] = useState<string[]>([]);
-  const [quickQuestStatus, setQuickQuestStatus] = useState<{
+  const [submitStatus, setSubmitStatus] = useState<{
     state: 'idle' | 'submitting' | 'success' | 'error';
     message?: string;
   }>({ state: 'idle' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedServiceMeta = useMemo(
     () => SERVICES.find((service) => service.key === selectedService) ?? null,
@@ -293,91 +294,75 @@ const Intake: React.FC = () => {
     return payload;
   };
 
-  const mirrorIntakeToSupabase = (form: HTMLFormElement) => {
-    try {
-      const payload = buildIntakePayload(form);
-      fetch('/api/intake-submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        keepalive: true
-      });
-    } catch (error) {
-      console.warn('Supabase mirror failed', error);
-    }
+  const submitNetlifyForm = async (form: HTMLFormElement) => {
+    const formData = new FormData(form);
+    await fetch('/', {
+      method: 'POST',
+      body: formData
+    });
   };
 
-  const handleIntakeSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    if (selectedService === 'quick_quest') {
-      handleQuickQuestSubmit(event);
-      return;
+  const submitIntakeToSupabase = async (form: HTMLFormElement) => {
+    const payload = buildIntakePayload(form);
+    const response = await fetch('/api/intake-submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Intake submission failed.');
     }
-
-    const form = event.currentTarget;
-    if (form) {
-      mirrorIntakeToSupabase(form);
-    }
+    return result;
   };
 
-  const handleQuickQuestSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    if (selectedService !== 'quick_quest') return;
+  const createStripeCheckout = async (serviceKey: string, readingId?: string, email?: string) => {
+    const response = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cart: [{ id: serviceKey, quantity: 1 }],
+        readingId,
+        email
+      })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result?.url) {
+      throw new Error(result?.error || 'Stripe checkout failed.');
+    }
+    return result.url as string;
+  };
+
+  const handleIntakeSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!selectedService) {
+      setSubmitStatus({ state: 'error', message: 'Please choose a service before continuing.' });
+      return;
+    }
 
     const form = event.currentTarget;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
     const data = new FormData(form);
-
-    if (!data.get('consent')) {
-      setQuickQuestStatus({ state: 'error', message: 'Please confirm consent before submitting.' });
-      return;
-    }
-
-    const payload = {
-      service: 'quick_quest',
-      guardian_name: String(data.get('guardian_name') || '').trim(),
-      email: String(data.get('email') || '').trim(),
-      timezone: String(data.get('timezone') || '').trim(),
-      relationship: String(data.get('relationship') || '').trim(),
-      pet_name: String(data.get('pet_name') || '').trim(),
-      species: String(data.get('species') || '').trim(),
-      breed: String(data.get('breed') || '').trim(),
-      birth_date: String(data.get('birth_date') || '').trim(),
-      qq_tone: String(data.get('qq_tone') || '').trim(),
-      question: String(data.get('qq_prompt') || '').trim(),
-      context: String(data.get('qq_context') || '').trim(),
-      estimated_total: String(data.get('estimated_total') || '').trim(),
-      consent: true
-    };
-
-    if (!payload.guardian_name || !payload.email || !payload.pet_name || !payload.question) {
-      setQuickQuestStatus({ state: 'error', message: 'Please complete the required Quick Quest fields.' });
-      return;
-    }
+    const email = String(data.get('email') || '').trim();
 
     try {
-      setQuickQuestStatus({ state: 'submitting' });
-      const response = await fetch('/api/quick-quest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(result?.error || 'Quick Quest submission failed.');
-      }
-
-      setQuickQuestStatus({
-        state: 'success',
-        message: 'Your Quick Quest is processing now. Watch your email for the response.'
-      });
-      window.setTimeout(() => {
-        window.location.href = '/thank-you';
-      }, 1200);
+      setIsSubmitting(true);
+      setSubmitStatus({ state: 'submitting', message: 'Saving your intake and redirecting to secure checkout...' });
+      await submitNetlifyForm(form);
+      const intakeResult = await submitIntakeToSupabase(form);
+      const checkoutUrl = await createStripeCheckout(selectedService, intakeResult?.readingId, email);
+      window.location.href = checkoutUrl;
     } catch (error: any) {
-      setQuickQuestStatus({
+      setSubmitStatus({
         state: 'error',
-        message: error?.message || 'Unable to submit your Quick Quest right now.'
+        message: error?.message || 'Unable to start checkout. Please try again.'
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -386,7 +371,6 @@ const Intake: React.FC = () => {
       footerLinks={[
         { label: 'Services', to: '/services' },
         { label: 'FAQ', to: '/faq' },
-        { label: 'Cart', to: '/cart' },
         { label: 'Intake', to: '/intake' }
       ]}
     >
@@ -400,7 +384,7 @@ const Intake: React.FC = () => {
                 Choose a service to reveal only the questions needed for that experience.
               </p>
               <div className="intake-pill">
-                <span>Payment:</span> <strong>PayPal</strong>
+                <span>Payment:</span> <strong>Stripe</strong>
                 <span>Delivery:</span> <strong>Email-only</strong>
                 <span>Instant:</span> <strong>$9 Quick Quests</strong>
               </div>
@@ -432,14 +416,19 @@ const Intake: React.FC = () => {
                 <label>Do not fill this out: <input name="bot-field" /></label>
               </p>
 
-              {quickQuestStatus.state === 'error' && (
+              {submitStatus.state === 'error' && (
                 <div className="notice intake-summary-note">
-                  {quickQuestStatus.message || 'Quick Quest submission failed. Please try again.'}
+                  {submitStatus.message || 'Submission failed. Please try again.'}
                 </div>
               )}
-              {quickQuestStatus.state === 'success' && (
+              {submitStatus.state === 'submitting' && (
+                <div className="notice intake-summary-note">
+                  {submitStatus.message || 'Preparing secure checkout...'}
+                </div>
+              )}
+              {submitStatus.state === 'success' && (
                 <div className="notice intake-summary-note intake-note-ok">
-                  {quickQuestStatus.message}
+                  {submitStatus.message}
                 </div>
               )}
 
@@ -538,7 +527,7 @@ const Intake: React.FC = () => {
               {isQuick ? (
                 <section className="intake-module">
                   <h2>{selectedServiceMeta?.name ?? 'Quick Quest'} ({selectedServiceMeta?.priceLabel ?? '$9'})</h2>
-                  <p className="intake-hint">Instant delivery after PayPal confirms payment.</p>
+                  <p className="intake-hint">Instant delivery after Stripe confirms payment.</p>
                   <input type="hidden" name="qq_type" value={selectedService} />
                   <div className="intake-row">
                     <div>
@@ -920,10 +909,11 @@ const Intake: React.FC = () => {
 
               <h2 className="intake-step-title">3) Pay &amp; submit</h2>
               <div className="intake-hint">
-                Email-only delivery. Quick Quests ($9) are delivered instantly after PayPal confirms payment.
+                You will be redirected to Stripe to complete payment securely.
               </div>
-
-              <div id="paypal-buttons" className="intake-paypal"></div>
+              <button className="cta wide" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Redirecting to Stripe...' : 'Submit & Pay with Stripe'}
+              </button>
               <div className="intake-fineprint">
                 By paying, you confirm the information submitted is accurate to the best of your knowledge.
               </div>
@@ -941,7 +931,7 @@ const Intake: React.FC = () => {
 
               {isInstant ? (
                 <div className="notice intake-summary-note intake-note-ok">
-                  Instant delivery enabled. Your result will be generated and emailed automatically after PayPal confirms.
+                  Instant delivery enabled. Your result will be generated and emailed automatically after Stripe confirms.
                 </div>
               ) : null}
 

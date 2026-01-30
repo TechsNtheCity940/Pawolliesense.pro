@@ -7,7 +7,6 @@ const DailyServices: React.FC = () => {
     <SiteLayout
       footerLinks={[
         { label: 'Services', to: '/services' },
-        { label: 'Cart', to: '/cart' },
         { label: 'Intake', to: '/intake' }
       ]}
     >
@@ -18,8 +17,7 @@ const DailyServices: React.FC = () => {
             <h1 className="hero-title">Daily Services</h1>
             <p className="section-lede">Quick spiritual snapshots delivered instantly for your companion.</p>
             <div className="hero-actions">
-              <Link className="cta" to="/cart">Go to Cart</Link>
-              <Link className="cta secondary" to="/intake">Open Intake Form</Link>
+              <Link className="cta" to="/intake">Open Intake Form</Link>
             </div>
           </div>
           <div className="stack">
@@ -36,7 +34,7 @@ const DailyServices: React.FC = () => {
               <p className="section-lede">Receive a spirit aura image and a quick intuitive insight. Delivered instantly.</p>
               <p className="service-desc">Price: $4.99</p>
               <div className="hero-actions">
-                <Link className="cta secondary" to="/cart">Purchase Pawollie Vision</Link>
+                <Link className="cta secondary" to="/intake">Purchase Pawollie Vision</Link>
               </div>
             </div>
             <div className="card col-6">
@@ -44,7 +42,7 @@ const DailyServices: React.FC = () => {
               <p className="section-lede">A daily check-in read for your pet's current emotional state. Delivered instantly.</p>
               <p className="service-desc">Price: $4.99</p>
               <div className="hero-actions">
-                <Link className="cta secondary" to="/cart">Purchase Pawsitive Pupdate</Link>
+                <Link className="cta secondary" to="/intake">Purchase Pawsitive Pupdate</Link>
               </div>
             </div>
           </div>

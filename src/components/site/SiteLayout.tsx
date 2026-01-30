@@ -15,7 +15,6 @@ const navLinks = [
   { label: 'Pawmarks', to: '/pawmarks' },
   { label: 'Community', to: '/community' },
   { label: 'Photo Booth', to: '/photobooth' },
-  { label: 'Cart', to: '/cart' },
   { label: 'Intake Form', to: '/intake' }
 ];
 
@@ -34,8 +33,6 @@ const SiteLayout: React.FC<{ children: React.ReactNode; footerLinks?: FooterLink
     window.pawollieInitServicePickButtons?.();
     window.pawollieInitServicePreselectFromUrl?.();
     window.pawollieInitPhotoBooth?.();
-    window.pawollieInitCart?.();
-    window.pawollieInitStripeCheckout?.();
     window.pawollieInitCommunityGame?.();
 
     if (location.hash) {

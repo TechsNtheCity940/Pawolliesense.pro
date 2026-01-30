@@ -90,6 +90,18 @@ export interface NewsletterSubscriber {
 
 // Service prices
 export const SERVICE_PRICES: Record<string, number> = {
+  full_spirit_pawfile: 35,
+  behavior_bond_guidance: 40,
+  pawmarks_pack: 45,
+  pawmark_post: 15,
+  star_chart: 19,
+  paw_reading: 19,
+  pawollie_vision: 19,
+  express_pawdate: 9,
+  quick_quest: 9,
+  bond_spark: 9,
+  all_paws_pack: 119,
+  furmily_pack: 79,
   'paw-reading': 19.99,
   'behavior-insight': 19.99,
   'spirit-profile': 19.99,

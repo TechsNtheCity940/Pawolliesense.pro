@@ -20,7 +20,6 @@ import CommunityPost from "./pages/CommunityPost";
 import Keepsakes from "./pages/Keepsakes";
 import PhotoBooth from "./pages/PhotoBooth";
 import Intake from "./pages/Intake";
-import Cart from "./pages/Cart";
 import ThankYou from "./pages/ThankYou";
 import Admin from "./pages/Admin";
 import AdminPawmarksNew from "./pages/AdminPawmarksNew";
@@ -52,7 +51,6 @@ const App = () => (
             <Route path="/keepsakes" element={<Keepsakes />} />
             <Route path="/photobooth" element={<PhotoBooth />} />
             <Route path="/intake" element={<Intake />} />
-            <Route path="/cart" element={<Cart />} />
             <Route path="/thank-you" element={<ThankYou />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/pawmarks/new" element={<AdminPawmarksNew />} />
