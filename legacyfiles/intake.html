@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Intake Form - Pawollie Sense</title>
+  <meta name="description" content="Complete the Pawollie Sense intake form and upload your photos.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+  <script defer src="js/main.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="index.html#home">
+        <img class="brand-mark" src="assets/pawollie-logo.png" alt="Pawollie Sense logo">
+        <div>
+          <div class="brand-text">PA<span class="brand-w" aria-hidden="true">W</span>OLLIE SENSE</div>
+          <p class="tagline">Your dog knows your soul. Now you can learn theirs.</p>
+        </div>
+      </a>
+      <button class="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="site-drawer">
+        <span class="menu-icon" aria-hidden="true"><span></span></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="drawer-backdrop" hidden></div>
+  <nav id="site-drawer" class="drawer" aria-label="Primary navigation">
+    <div class="drawer-header">
+      <div class="drawer-title">Navigate</div>
+      <button class="menu-btn" data-drawer-close aria-label="Close menu">Close</button>
+    </div>
+    <a href="index.html#home">Home</a>
+    <a href="services.html">Services</a>
+    <a href="daily-services.html">Daily Services</a>
+    <a href="about.html">About Us</a>
+    <a href="testimonials.html">Testimonials</a>
+    <a href="story.html">Our Story</a>
+    <a href="memorial.html">Pawmarks Memorial</a>
+    <a href="photobooth.html">Photo Booth</a>
+    <a href="cart.html">Cart</a>
+    <a href="intake.html">Intake Form</a>
+  </nav>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-card">
+          <div class="pill">Intake and photo submission</div>
+          <h1 class="hero-title">Full Intake Form</h1>
+          <p class="section-lede">
+            The intake form pairs your photos with your service and gives the emotional context needed for an accurate reading.
+          </p>
+          <p class="mini">Estimated delivery: 3 to 5 business days after your form and photos are received.</p>
+        </div>
+        <div class="stack">
+          <img class="hero-logo" src="assets/pawollie-logo.png" alt="Illustrated Pawollie Sense logo featuring Oliver">
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="notice">
+          <p>
+            Upload photos before completing the intake form. Incorrect file naming can delay results.
+            Files are stored under your last name and organized by service type.
+          </p>
+        </div>
+
+        <form id="intake-form"
+              name="pawollie-intake"
+              method="POST"
+              data-netlify="true"
+              data-netlify-honeypot="bot-field"
+              action="/thank-you.html"
+              enctype="multipart/form-data">
+
+          <input type="hidden" name="form-name" value="pawollie-intake">
+          <input type="hidden" name="subject" value="Pawollie Sense Intake Confirmation">
+          <input type="hidden" name="reply_to" value="email">
+          <input type="hidden" name="selected_service_label" value="">
+          <input type="hidden" name="selected_add_ons_csv" value="">
+          <input type="hidden" name="estimated_price" value="">
+          <input type="hidden" name="owner_last_name_derived" value="">
+          <input type="hidden" name="photo_label_prefix" value="">
+
+          <p hidden>
+            <label>Do not fill this out: <input name="bot-field"></label>
+          </p>
+          <fieldset class="form-section">
+            <legend>Section 1: Customer and Organization</legend>
+            <div class="inline">
+              <div class="field">
+                <label for="owner_last_name">Last name (required)</label>
+                <input id="owner_last_name" name="owner_last_name" autocomplete="family-name" required>
+              </div>
+              <div class="field">
+                <label for="owner_first_name">First name (optional)</label>
+                <input id="owner_first_name" name="owner_first_name" autocomplete="given-name">
+              </div>
+            </div>
+            <div class="field">
+              <label for="email">Email address (required)</label>
+              <input id="email" type="email" name="email" autocomplete="email" required>
+            </div>
+            <div class="field">
+              <label for="preferred_name">Preferred name for communication (optional)</label>
+              <input id="preferred_name" name="preferred_name" autocomplete="nickname">
+            </div>
+            <p class="help">
+              All uploaded photos must be labeled using your last name: LASTNAME_1, LASTNAME_2, LASTNAME_3, and LASTNAME_4.
+            </p>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend>Section 2: Dog Information</legend>
+            <div class="field">
+              <label for="pet_name">Dog name</label>
+              <input id="pet_name" name="pet_name" required>
+            </div>
+            <div class="inline">
+              <div class="field">
+                <label for="pet_age">Dog age</label>
+                <input id="pet_age" name="pet_age" placeholder="e.g., 4 years or senior">
+              </div>
+              <div class="field">
+                <label for="time_with_owner">Time with owner</label>
+                <input id="time_with_owner" name="time_with_owner" placeholder="e.g., 2 years or since puppyhood">
+              </div>
+            </div>
+            <div class="field">
+              <label for="pet_breed">Breed or mix</label>
+              <input id="pet_breed" name="pet_breed">
+            </div>
+            <div class="field">
+              <span class="label">Living or passed</span>
+              <div class="checkbox-grid">
+                <label class="checkbox"><input type="radio" name="pet_status" value="living" checked> Living</label>
+                <label class="checkbox"><input type="radio" name="pet_status" value="passed"> Passed</label>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend>Section 3: Service Selection</legend>
+            <div class="field">
+              <label for="service_purchased">Service purchased (required)</label>
+              <select id="service_purchased" name="service_purchased" required>
+                <option value="">Select a service</option>
+                <option value="full_soul_profile">Full Soul Discovery Profile - $30</option>
+                <option value="behavior_spirit_scan">Personality and Behavior Spirit Scan - $20</option>
+                <option value="canine_birth_chart">Canine Birth Chart - $15</option>
+                <option value="past_life_pawprint">Past-Life Pawprint Reading - $5</option>
+                <option value="quick_quest">Quick Quest - $5</option>
+                <option value="pawollie_vision">Pawollie Vision (Daily) - $4.99</option>
+                <option value="pawsitive_pupdate">Pawsitive Pupdate (Daily) - $4.99</option>
+              </select>
+              <div id="service_error" class="error" aria-live="polite"></div>
+            </div>
+
+            <div class="field">
+              <span class="label">Add-ons</span>
+              <div class="checkbox-grid">
+                <label class="checkbox"><input type="checkbox" name="add_ons" value="soul_transition"> Soul Transition and Next-Life Pathway</label>
+                <label class="checkbox"><input type="checkbox" name="add_ons" value="golden_aura"> Golden Aura Glow</label>
+                <label class="checkbox"><input type="checkbox" name="add_ons" value="bonding_guidance"> Bonding Guidance Card</label>
+                <label class="checkbox"><input type="checkbox" name="add_ons" value="extra_photos"> Extra Photo Add-On</label>
+              </div>
+            </div>
+
+            <div class="total" aria-live="polite">
+              <div>
+                <div class="total-label">Estimated total</div>
+                <div class="help">Service price only. Add-on pricing confirmed by email.</div>
+              </div>
+              <div class="total-amount"><span id="service_price_display">$0</span></div>
+            </div>
+          </fieldset>
+          <fieldset class="form-section" data-service-section="full_soul_profile" hidden>
+            <legend>Full Soul Discovery Profile</legend>
+            <div class="field">
+              <label for="full_question">Main question you want answered</label>
+              <textarea id="full_question" name="full_question" rows="4" data-required></textarea>
+            </div>
+            <div class="field">
+              <label for="full_quirks">Known quirks, habits, or emotional concerns</label>
+              <textarea id="full_quirks" name="full_quirks" rows="4"></textarea>
+            </div>
+            <div class="field">
+              <label for="full_strangers">How does your dog behave around strangers?</label>
+              <input id="full_strangers" name="full_strangers" placeholder="e.g., shy, curious, protective">
+            </div>
+            <div class="field">
+              <label for="full_animals">How does your dog behave around other animals?</label>
+              <input id="full_animals" name="full_animals" placeholder="e.g., playful, cautious, avoidant">
+            </div>
+            <div class="field">
+              <label for="full_household">How does your dog behave around household members?</label>
+              <input id="full_household" name="full_household" placeholder="e.g., attached, independent, gentle">
+            </div>
+            <div class="field">
+              <label for="full_attachment">Attachment style as you see it</label>
+              <input id="full_attachment" name="full_attachment" placeholder="e.g., velcro, balanced, independent">
+            </div>
+            <div class="field">
+              <label for="full_energy">Energy level</label>
+              <select id="full_energy" name="full_energy" data-required>
+                <option value="">Select energy</option>
+                <option value="low">Low</option>
+                <option value="moderate">Moderate</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="full_spirit_understanding">What do you want to understand most about your dog's spirit?</label>
+              <textarea id="full_spirit_understanding" name="full_spirit_understanding" rows="4" data-required></textarea>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section" data-service-section="behavior_spirit_scan" hidden>
+            <legend>Personality and Behavior Spirit Scan</legend>
+            <div class="field">
+              <label for="behavior_focus">Behavior or mood you want insight into</label>
+              <textarea id="behavior_focus" name="behavior_focus" rows="4" data-required></textarea>
+            </div>
+            <div class="field">
+              <label for="behavior_triggers">Triggers you have noticed</label>
+              <textarea id="behavior_triggers" name="behavior_triggers" rows="4"></textarea>
+            </div>
+            <div class="field">
+              <label for="behavior_changes">Recent changes in environment, routine, or household</label>
+              <textarea id="behavior_changes" name="behavior_changes" rows="4"></textarea>
+            </div>
+            <div class="field">
+              <label for="behavior_confusion">What is confusing you most?</label>
+              <textarea id="behavior_confusion" name="behavior_confusion" rows="4" data-required></textarea>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section" data-service-section="canine_birth_chart" hidden>
+            <legend>Canine Birth Chart</legend>
+            <div class="field">
+              <label for="birth_date">Birthdate</label>
+              <input id="birth_date" type="date" name="birth_date" data-required>
+            </div>
+            <div class="field">
+              <label for="birth_time_status">Birth time status</label>
+              <select id="birth_time_status" name="birth_time_status" data-required>
+                <option value="">Select an option</option>
+                <option value="exact">Exact time known</option>
+                <option value="unknown">Birth time unknown</option>
+                <option value="morning">Approximate morning</option>
+                <option value="afternoon">Approximate afternoon</option>
+                <option value="evening">Approximate evening</option>
+              </select>
+            </div>
+            <div class="field" id="birth_time_field" hidden>
+              <label for="birth_time">Birth time</label>
+              <input id="birth_time" type="time" name="birth_time">
+            </div>
+            <div class="field">
+              <label for="birthplace">Birthplace (City, State)</label>
+              <input id="birthplace" name="birthplace" data-required>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section" data-service-section="past_life_pawprint" hidden>
+            <legend>Past-Life Pawprint Reading</legend>
+            <div class="field">
+              <label for="pastlife_unexplainable">Any behaviors that feel unexplainable</label>
+              <textarea id="pastlife_unexplainable" name="pastlife_unexplainable" rows="4"></textarea>
+            </div>
+            <div class="field">
+              <label for="pastlife_dreams">Symbolic dreams or intuitive pulls you notice</label>
+              <textarea id="pastlife_dreams" name="pastlife_dreams" rows="4"></textarea>
+            </div>
+            <div class="field">
+              <label for="pastlife_curiosity">What are you curious to learn from a past-life lens?</label>
+              <textarea id="pastlife_curiosity" name="pastlife_curiosity" rows="4" data-required></textarea>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section" data-service-section="quick_quest" hidden>
+            <legend>Quick Quest</legend>
+            <div class="field">
+              <label for="quick_question">Your single clear question</label>
+              <textarea id="quick_question" name="quick_question" rows="4" data-required placeholder="Example: Why is my dog suddenly clingier at night?"></textarea>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section" data-service-section="pawollie_vision" hidden>
+            <legend>Pawollie Vision (Daily)</legend>
+            <div class="field">
+              <label for="vision_focus">What should the aura focus on today?</label>
+              <textarea id="vision_focus" name="vision_focus" rows="4" data-required></textarea>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section" data-service-section="pawsitive_pupdate" hidden>
+            <legend>Pawsitive Pupdate (Daily)</legend>
+            <div class="field">
+              <label for="pupdate_focus">What do you want today's check-in to focus on?</label>
+              <textarea id="pupdate_focus" name="pupdate_focus" rows="4" data-required></textarea>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section" data-addon-section="soul_transition" hidden>
+            <legend>Soul Transition and Next-Life Pathway</legend>
+            <div class="field">
+              <label for="soul_chapters">Recent emotional chapter changes</label>
+              <textarea id="soul_chapters" name="soul_chapters" rows="4" data-required></textarea>
+            </div>
+            <div class="field">
+              <label for="soul_losses">Any losses or shifts in the home</label>
+              <textarea id="soul_losses" name="soul_losses" rows="4" data-required></textarea>
+            </div>
+            <div class="field">
+              <label for="soul_release">How does your dog express frustration or release?</label>
+              <textarea id="soul_release" name="soul_release" rows="4" data-required></textarea>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section" data-addon-section="bonding_guidance" hidden>
+            <legend>Bonding Guidance Card</legend>
+            <div class="field">
+              <label for="bonding_strengthen">What do you want help strengthening with your dog?</label>
+              <textarea id="bonding_strengthen" name="bonding_strengthen" rows="4" data-required placeholder="Examples: trust, communication, emotional closeness"></textarea>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section" data-addon-section="golden_aura" hidden>
+            <legend>Golden Aura Glow</legend>
+            <p class="help">No extra questions needed. We will confirm your photos are clear.</p>
+          </fieldset>
+
+          <fieldset class="form-section" data-addon-section="extra_photos" hidden>
+            <legend>Extra Photo Add-On</legend>
+            <p class="help">This add-on allows an extra photo upload.</p>
+          </fieldset>
+          <fieldset class="form-section">
+            <legend>Section 4: Photo Upload</legend>
+            <p class="help">
+              Upload 2 to 4 clear photos. Front and back paws are strongly suggested for paw-based readings.
+              <span id="photo_count_hint">Extra Photo Add-On allows 5 uploads.</span>
+            </p>
+            <div class="field">
+              <label for="photos">Upload photos</label>
+              <input id="photos" type="file" name="photos" accept="image/*" multiple required>
+              <div id="photo_error" class="error" aria-live="polite"></div>
+            </div>
+            <div class="field">
+              <label class="checkbox">
+                <input id="photo_confirmation" type="checkbox" name="photo_confirmation" required>
+                <span id="photo_confirmation_text">I have uploaded 2 to 4 photos named using my LAST NAME.</span>
+              </label>
+            </div>
+            <p class="help">Files are stored under your last name and organized by service type.</p>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend>Section 5: Behavior and History</legend>
+            <div class="field">
+              <label for="major_life_events">Major life events (moves, trauma, illness, loss)</label>
+              <textarea id="major_life_events" name="major_life_events" rows="4"></textarea>
+            </div>
+            <div class="field">
+              <label for="current_concerns">Current concerns</label>
+              <textarea id="current_concerns" name="current_concerns" rows="4"></textarea>
+            </div>
+            <div class="field">
+              <label for="changes_noticed">Changes noticed</label>
+              <textarea id="changes_noticed" name="changes_noticed" rows="4"></textarea>
+            </div>
+            <div class="field">
+              <span class="label">Emotional descriptors (select any)</span>
+              <div class="chip-grid">
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="curious"> Curious</label>
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="playful"> Playful</label>
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="sensitive"> Sensitive</label>
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="anxious"> Anxious</label>
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="guarded"> Guarded</label>
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="affectionate"> Affectionate</label>
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="independent"> Independent</label>
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="attached"> Attached</label>
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="grieving"> Grieving</label>
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="confident"> Confident</label>
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="calm"> Calm</label>
+                <label class="chip"><input type="checkbox" name="emotional_descriptors" value="high_energy"> High energy</label>
+              </div>
+            </div>
+            <div class="field">
+              <label for="emotional_other">Other descriptor (optional)</label>
+              <input id="emotional_other" name="emotional_other">
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend>Section 6: Intent and Consent</legend>
+            <div class="checkbox-grid">
+              <label class="checkbox">
+                <input type="checkbox" name="consent_spiritual" required>
+                I understand readings are symbolic, intuitive, and for enrichment purposes.
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" name="consent_not_medical" required>
+                I understand this service is not a medical, veterinary, behavioral, legal, or professional substitute.
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" name="consent_symbolic" required>
+                I consent to symbolic interpretation shared with compassion and transparency.
+              </label>
+            </div>
+            <p class="help">No fear-based messaging. No medical claims. No dependency encouragement.</p>
+          </fieldset>
+
+          <fieldset id="memorial_fields" class="form-section" hidden>
+            <legend>Section 7: Memorial (If Applicable)</legend>
+            <div class="inline">
+              <div class="field">
+                <label for="date_of_passing">Date of passing</label>
+                <input id="date_of_passing" type="date" name="date_of_passing">
+              </div>
+              <div class="field">
+                <span class="label">Public or private preference</span>
+                <div class="checkbox-grid">
+                  <label class="checkbox"><input type="radio" name="memorial_visibility" value="private"> Private</label>
+                  <label class="checkbox"><input type="radio" name="memorial_visibility" value="public"> Public</label>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <label for="remembered_as">How you want your pet remembered</label>
+              <textarea id="remembered_as" name="remembered_as" rows="4"></textarea>
+            </div>
+            <div class="field">
+              <label for="message_to_pet">Optional message to your pet</label>
+              <textarea id="message_to_pet" name="message_to_pet" rows="4"></textarea>
+            </div>
+          </fieldset>
+
+          <button type="submit" class="cta">Submit Intake</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div>
+        <a href="services.html">Services</a> | <a href="daily-services.html">Daily Services</a> | <a href="cart.html">Cart</a> | <a href="intake.html">Intake</a>
+      </div>
+      <div class="mini">Copyright Pawollie Sense. In memory of Oliver Herbert.</div>
+    </div>
+  </footer>
+</body>
+</html>

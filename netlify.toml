@@ -1,0 +1,123 @@
+[build]
+  publish = "dist"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/orders"
+  to = "/.netlify/functions/create-order"
+  status = 200
+
+[[redirects]]
+  from = "/api/orders/:id/capture"
+  to = "/.netlify/functions/capture-order?id=:id"
+  status = 200
+
+[[redirects]]
+  from = "/api/checkout"
+  to = "/.netlify/functions/create-checkout"
+  status = 200
+
+[[redirects]]
+  from = "/api/stripe-webhook"
+  to = "/.netlify/functions/stripe-webhook"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/login"
+  to = "/.netlify/functions/admin-login"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/session"
+  to = "/.netlify/functions/admin-session"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/logout"
+  to = "/.netlify/functions/admin-logout"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/generate-reading"
+  to = "/.netlify/functions/admin-generate-reading"
+  status = 200
+
+[[redirects]]
+  from = "/api/quick-quest"
+  to = "/.netlify/functions/quick-quest"
+  status = 200
+
+[[redirects]]
+  from = "/api/intake-submit"
+  to = "/.netlify/functions/intake-submit"
+  status = 200
+
+[[redirects]]
+  from = "/api/wagbook/generate"
+  to = "/.netlify/functions/wagbook-generate"
+  status = 200
+
+[[redirects]]
+  from = "/api/wagbook/story"
+  to = "/.netlify/functions/wagbook-story"
+  status = 200
+
+[[redirects]]
+  from = "/api/wagbook/story-edit"
+  to = "/.netlify/functions/wagbook-story-edit"
+  status = 200
+
+[[redirects]]
+  from = "/api/wagbook/prompts"
+  to = "/.netlify/functions/wagbook-prompts"
+  status = 200
+
+[[redirects]]
+  from = "/api/wagbook/images"
+  to = "/.netlify/functions/wagbook-images"
+  status = 200
+
+[[redirects]]
+  from = "/api/wagbook/pdf"
+  to = "/.netlify/functions/wagbook-pdf"
+  status = 200
+
+[[redirects]]
+  from = "/api/wagbook/spellcheck"
+  to = "/.netlify/functions/wagbook-spellcheck"
+  status = 200
+
+[[redirects]]
+  from = "/api/wagbook/cover-pdf"
+  to = "/.netlify/functions/wagbook-cover-pdf"
+  status = 200
+
+[[redirects]]
+  from = "/api/wagbook/canva"
+  to = "/.netlify/functions/wagbook-canva"
+  status = 200
+
+[[redirects]]
+  from = "/api/wagbook/print"
+  to = "/.netlify/functions/wagbook-print"
+  status = 200
+
+[[redirects]]
+  from = "/api/canva/auth"
+  to = "/.netlify/functions/canva-auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/canva/callback"
+  to = "/.netlify/functions/canva-callback"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[dev]
+  command = "npm run dev"
+  targetPort = 5174
+  port = 8888

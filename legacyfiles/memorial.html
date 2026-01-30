@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pawmarks Memorial - Pawollie Sense</title>
+  <meta name="description" content="A living space of remembrance. Share tributes, photos, and music in honor of your companion.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+  <script defer src="js/main.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="index.html#home">
+        <img class="brand-mark" src="assets/pawollie-logo.png" alt="Pawollie Sense logo">
+        <div>
+          <div class="brand-text">PA<span class="brand-w" aria-hidden="true">W</span>OLLIE SENSE</div>
+          <p class="tagline">Your dog knows your soul. Now you can learn theirs.</p>
+        </div>
+      </a>
+      <button class="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="site-drawer">
+        <span class="menu-icon" aria-hidden="true"><span></span></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="drawer-backdrop" hidden></div>
+  <nav id="site-drawer" class="drawer" aria-label="Primary navigation">
+    <div class="drawer-header">
+      <div class="drawer-title">Navigate</div>
+      <button class="menu-btn" data-drawer-close aria-label="Close menu">Close</button>
+    </div>
+    <a href="index.html#home">Home</a>
+    <a href="services.html">Services</a>
+    <a href="daily-services.html">Daily Services</a>
+    <a href="about.html">About Us</a>
+    <a href="testimonials.html">Testimonials</a>
+    <a href="story.html">Our Story</a>
+    <a href="memorial.html">Pawmarks Memorial</a>
+    <a href="photobooth.html">Photo Booth</a>
+    <a href="cart.html">Cart</a>
+    <a href="intake.html">Intake Form</a>
+  </nav>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-card">
+          <div class="pill">Legacy space | Compassion-first | Photos and music</div>
+          <h1 class="hero-title">Pawmarks Memorial</h1>
+          <p class="section-lede">A living space of remembrance. Share a tribute, a photo, and a song.</p>
+          <div class="hero-actions">
+            <a class="cta secondary" href="photobooth.html">Make a keepsake</a>
+            <a class="cta secondary" href="intake.html">Book a Reading</a>
+          </div>
+          <p class="mini">Memorial posts are added by the Pawollie Sense team. Public comments are welcome.</p>
+        </div>
+        <div class="stack">
+          <img class="hero-logo" src="assets/pawollie-logo.png" alt="Illustrated Pawollie Sense logo featuring Oliver">
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="grid">
+          <div class="card col-6">
+            <h2 class="section-title">Submit a memorial post</h2>
+            <form name="memorial-post"
+                  method="POST"
+                  data-netlify="true"
+                  data-netlify-honeypot="bot-field"
+                  action="/thank-you.html"
+                  enctype="multipart/form-data">
+              <input type="hidden" name="form-name" value="memorial-post">
+
+              <p hidden>
+                <label>Do not fill this out: <input name="bot-field"></label>
+              </p>
+
+              <div class="field">
+                <label for="memorial_owner_name">Your name</label>
+                <input id="memorial_owner_name" name="owner_name" required>
+              </div>
+
+              <div class="field">
+                <label for="memorial_pet_name">Companion name</label>
+                <input id="memorial_pet_name" name="pet_name" required>
+              </div>
+
+              <div class="field">
+                <label for="memorial_message">Your message</label>
+                <textarea id="memorial_message" name="message" rows="5" required></textarea>
+              </div>
+
+              <div class="field">
+                <span class="label">Public or private preference</span>
+                <div class="checkbox-grid">
+                  <label class="checkbox"><input type="radio" name="visibility" value="private" checked> Private</label>
+                  <label class="checkbox"><input type="radio" name="visibility" value="public"> Public</label>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="memorial_photo">Upload a photo</label>
+                <input id="memorial_photo" type="file" name="photo" accept="image/*" required>
+              </div>
+
+              <div class="field">
+                <label for="memorial_audio">Upload audio (optional)</label>
+                <input id="memorial_audio" type="file" name="audio" accept="audio/*">
+                <p class="help">Audio plays while the post is being viewed.</p>
+              </div>
+
+              <div class="field">
+                <label for="memorial_youtube">YouTube link (optional)</label>
+                <input id="memorial_youtube" name="youtube_link" placeholder="https://www.youtube.com/...">
+              </div>
+
+              <button type="submit" class="cta">Submit Memorial</button>
+            </form>
+          </div>
+
+          <div class="card col-6">
+            <h2 class="section-title">Memorial reading</h2>
+            <p class="section-lede">
+              The Memorial Reading is offered for pets who have passed and focuses on emotional closure, legacy, and honoring the bond.
+              It symbolically interprets the pet's role, the meaning of their life with the owner, and what remains emotionally carried forward.
+            </p>
+            <p class="mini">
+              This service does not involve claims of direct communication, mediumship, or messages from the deceased and is intentionally grounded and non-exploitative.
+            </p>
+            <a class="cta secondary" href="services.html">View Services</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <h2 class="section-title">Memorial feed</h2>
+        <div class="feed-grid">
+          <article class="post-card">
+            <div class="post-header">
+              <h3>Oliver</h3>
+              <span class="mini">Guardian, teacher, and gentle presence</span>
+            </div>
+            <div class="post-media"><span>Photo</span></div>
+            <p>Always protective, always calm. Thank you for guiding us back to ourselves.</p>
+            <audio controls class="post-audio">
+              <source src="" type="audio/mpeg">
+            </audio>
+            <a class="mini" href="#">YouTube tribute</a>
+            <form class="comment-form" name="memorial-comment" method="POST" data-netlify="true" data-netlify-honeypot="bot-field" action="/thank-you.html">
+              <input type="hidden" name="form-name" value="memorial-comment">
+              <input type="hidden" name="post_id" value="oliver">
+              <p hidden>
+                <label>Do not fill this out: <input name="bot-field"></label>
+              </p>
+              <label class="field">
+                <span class="label">Leave a comment</span>
+                <textarea name="comment" rows="3" required></textarea>
+              </label>
+              <button type="submit" class="cta secondary">Post Comment</button>
+            </form>
+          </article>
+
+          <article class="post-card">
+            <div class="post-header">
+              <h3>Luna</h3>
+              <span class="mini">Comfort, light, and endless devotion</span>
+            </div>
+            <div class="post-media"><span>Photo</span></div>
+            <p>Her memory still fills every corner with warmth. We miss her every day.</p>
+            <audio controls class="post-audio">
+              <source src="" type="audio/mpeg">
+            </audio>
+            <a class="mini" href="#">YouTube tribute</a>
+            <form class="comment-form" name="memorial-comment" method="POST" data-netlify="true" data-netlify-honeypot="bot-field" action="/thank-you.html">
+              <input type="hidden" name="form-name" value="memorial-comment">
+              <input type="hidden" name="post_id" value="luna">
+              <p hidden>
+                <label>Do not fill this out: <input name="bot-field"></label>
+              </p>
+              <label class="field">
+                <span class="label">Leave a comment</span>
+                <textarea name="comment" rows="3" required></textarea>
+              </label>
+              <button type="submit" class="cta secondary">Post Comment</button>
+            </form>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="card">
+          <h2 class="section-title">Community circle</h2>
+          <p class="section-lede">Members receive ongoing support, memorial updates, and gentle reminders of the bond.</p>
+          <div class="hero-actions">
+            <a class="cta secondary" href="#">Join Membership</a>
+          </div>
+          <p class="mini">Membership access will be managed by the Pawollie Sense team.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div>
+        <a href="services.html">Services</a> | <a href="intake.html">Intake</a> | <a href="photobooth.html">Photo Booth</a>
+      </div>
+      <div class="mini">Copyright Pawollie Sense. In memory of Oliver Herbert.</div>
+    </div>
+  </footer>
+</body>
+</html>

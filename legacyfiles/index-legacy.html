@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<!-- Legacy version kept for reference. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pawollie Sense</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+<script src="https://www.paypal.com/sdk/js?client-id=PAYPAL_CLIENT_ID&currency=USD"></script>
+<script defer src="js/main.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="menu-btn">☰</button>
+  <div class="brand">PA<span class="paw-o">W</span>OLLIE SENSE</div>
+</header>
+
+<nav class="drawer">
+  <a href="#home">Home</a>
+  <a href="#services">Services</a>
+  <a href="#booking">Intake</a>
+  <a href="memorial.html">Memorial</a>
+  <a href="#faq">FAQ</a>
+</nav>
+
+<section id="home" class="hero">
+  <img src="images/pawollie-logo.png" class="hero-logo">
+  <h1>PA<span class="paw-o">W</span>OLLIE SENSE</h1>
+  <p>Spirit-led insight for every friend with paws</p>
+  <a href="#booking" class="cta">Book a Reading</a>
+</section>
+
+<section id="services" class="services">
+  <h2>Services</h2>
+  <div class="card">
+    <h3>Full Price Summary (Holiday)</h3>
+    <div class="table-wrap">
+      <table class="price-table" aria-label="Service pricing">
+        <thead>
+          <tr>
+            <th scope="col">Service</th>
+            <th scope="col">Regular</th>
+            <th scope="col">Holiday</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Paw Reading</th><td>$25</td><td>$20</td></tr>
+          <tr><th scope="row">Behavior Insight</th><td>$35</td><td>$30</td></tr>
+          <tr><th scope="row">Spirit Profile</th><td>$45</td><td>$40</td></tr>
+          <tr><th scope="row">Birth Chart</th><td>$30</td><td>$25</td></tr>
+          <tr><th scope="row">Past Life Session</th><td>$45</td><td>$40</td></tr>
+          <tr><th scope="row">Full Package</th><td>$75</td><td>$70</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="booking" class="booking">
+  <h2>Full Intake Form</h2>
+
+  <!-- NETLIFY FORM WITH AUTO-REPLY -->
+  <form id="intake-form"
+        name="pawollie-intake"
+        method="POST"
+        data-netlify="true"
+        data-netlify-honeypot="bot-field"
+        action="/thank-you.html"
+        enctype="multipart/form-data">
+
+    <input type="hidden" name="form-name" value="pawollie-intake">
+    <input type="hidden" name="subject" value="Pawollie Sense Intake Confirmation">
+    <input type="hidden" name="reply_to" value="email">
+    <input type="hidden" name="selected_services_csv" value="">
+    <input type="hidden" name="selected_add_ons_csv" value="">
+    <input type="hidden" name="pricing_mode" value="holiday">
+    <input type="hidden" name="total_regular" value="">
+    <input type="hidden" name="total_holiday" value="">
+    <input type="hidden" name="total_due" value="">
+    <input type="hidden" name="owner_last_name_derived" value="">
+
+    <p hidden>
+      <label>Don't fill this out: <input name="bot-field"></label>
+    </p>
+
+    <fieldset class="form-section">
+      <legend>Section 1: Owner Information</legend>
+      <div class="field">
+        <label for="owner_full_name">First &amp; last name</label>
+        <input id="owner_full_name" name="owner_full_name" autocomplete="name" required>
+      </div>
+      <div class="field">
+        <label for="email">Email address</label>
+        <input id="email" type="email" name="email" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="preferred_name">Preferred name for communication</label>
+        <input id="preferred_name" name="preferred_name" autocomplete="nickname">
+      </div>
+      <p class="help">
+        For file organization, photos are labeled using your last name and your selected service(s).
+      </p>
+    </fieldset>
+
+    <fieldset class="form-section">
+      <legend>Section 2: Pet Information</legend>
+      <div class="field">
+        <label for="pet_name">Pet name</label>
+        <input id="pet_name" name="pet_name" required>
+      </div>
+      <div class="field">
+        <label for="species_breed">Species / breed (if known)</label>
+        <input id="species_breed" name="species_breed">
+      </div>
+      <div class="inline">
+        <div class="field">
+          <label for="pet_age">Age or estimated age</label>
+          <input id="pet_age" name="pet_age" inputmode="text" placeholder="e.g., 4 years / senior / unknown">
+        </div>
+        <div class="field">
+          <label for="time_with_owner">Time with owner</label>
+          <input id="time_with_owner" name="time_with_owner" inputmode="text" placeholder="e.g., 2 years / since puppyhood">
+        </div>
+      </div>
+      <div class="field">
+        <span class="label">Living or passed</span>
+        <div class="checkbox-grid">
+          <label class="checkbox"><input type="radio" name="pet_status" value="living" checked> Living</label>
+          <label class="checkbox"><input type="radio" name="pet_status" value="passed"> Passed</label>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section">
+      <legend>Section 3: Service Selection</legend>
+      <div class="field">
+        <span class="label">Pricing mode</span>
+        <div class="checkbox-grid">
+          <label class="checkbox"><input type="radio" name="pricing_mode_ui" value="holiday" checked> Holiday pricing</label>
+          <label class="checkbox"><input type="radio" name="pricing_mode_ui" value="regular"> Regular pricing</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">Services</span>
+        <div class="checkbox-grid">
+          <label class="checkbox"><input type="checkbox" name="services" value="paw_reading" data-service> Paw Reading</label>
+          <label class="checkbox"><input type="checkbox" name="services" value="behavior_insight" data-service> Behavior Insight</label>
+          <label class="checkbox"><input type="checkbox" name="services" value="spirit_profile" data-service> Spirit Profile</label>
+          <label class="checkbox"><input type="checkbox" name="services" value="birth_chart" data-service> Birth Chart</label>
+          <label class="checkbox"><input type="checkbox" name="services" value="past_life_session" data-service> Past Life Session</label>
+          <label class="checkbox"><input type="checkbox" name="services" value="full_package" data-service> Full Package</label>
+        </div>
+        <div id="service_error" class="error" aria-live="polite"></div>
+        <p class="help">Selecting “Full Package” applies the package price (and deselects other items).</p>
+      </div>
+
+      <div class="field">
+        <span class="label">Add-ons (optional)</span>
+        <div class="checkbox-grid">
+          <label class="checkbox"><input type="checkbox" name="add_ons" value="second_pet"> Add a second pet (pricing confirmed by email)</label>
+          <label class="checkbox"><input type="checkbox" name="add_ons" value="rush_turnaround"> Rush turnaround (pricing confirmed by email)</label>
+        </div>
+      </div>
+
+      <div class="total" aria-live="polite">
+        <div>
+          <div class="total-label">Total due</div>
+          <div class="help">Auto-updates based on your selections.</div>
+        </div>
+        <div class="total-amount"><span id="total_due_display">$0</span></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section">
+      <legend>Section 4: Photo Upload</legend>
+      <p class="help">
+        Minimum: 2 photos. Maximum: 5 photos.
+        <br>
+        For paw readings, front and back paws are strongly suggested.
+      </p>
+      <div class="field">
+        <label for="photos">Upload photos</label>
+        <input id="photos" type="file" name="photos" accept="image/*" multiple required>
+        <div id="photo_error" class="error" aria-live="polite"></div>
+      </div>
+      <p class="help">
+        File handling rule: your photos are auto-labeled on submit using your last name and selected service(s).
+      </p>
+    </fieldset>
+
+    <fieldset class="form-section">
+      <legend>Section 5: Behavior &amp; History (Key)</legend>
+      <div class="field">
+        <label for="major_life_events">Major life events (moves, trauma, illness, loss)</label>
+        <textarea id="major_life_events" name="major_life_events" rows="4"></textarea>
+      </div>
+      <div class="field">
+        <label for="current_concerns">Current concerns</label>
+        <textarea id="current_concerns" name="current_concerns" rows="4"></textarea>
+      </div>
+      <div class="field">
+        <label for="changes_noticed">Changes noticed</label>
+        <textarea id="changes_noticed" name="changes_noticed" rows="4"></textarea>
+      </div>
+      <div class="field">
+        <span class="label">Emotional descriptors (select any)</span>
+        <div class="chip-grid">
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="curious"> Curious</label>
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="playful"> Playful</label>
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="sensitive"> Sensitive</label>
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="anxious"> Anxious</label>
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="guarded"> Guarded</label>
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="affectionate"> Affectionate</label>
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="independent"> Independent</label>
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="attached"> Attached</label>
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="grieving"> Grieving</label>
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="confident"> Confident</label>
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="calm"> Calm</label>
+          <label class="chip"><input type="checkbox" name="emotional_descriptors" value="high_energy"> High energy</label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="emotional_other">Other descriptor (optional)</label>
+        <input id="emotional_other" name="emotional_other">
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section">
+      <legend>Section 6: Intent &amp; Consent</legend>
+      <div class="checkbox-grid">
+        <label class="checkbox">
+          <input type="checkbox" name="consent_spiritual" required>
+          I acknowledge this service is spiritual/intuitive in nature and offered for reflection and support.
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="consent_not_medical" required>
+          I understand this is not a medical, veterinary, legal, or professional substitute.
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="consent_symbolic" required>
+          I consent to symbolic interpretation and understand insights are shared with compassion and transparency.
+        </label>
+      </div>
+      <p class="help">
+        No fear-based messaging. No medical claims. No dependency encouragement. Compassion-first language and transparency in interpretation.
+      </p>
+    </fieldset>
+
+    <fieldset id="memorial_fields" class="form-section" hidden>
+      <legend>Section 7: Memorial (If Applicable)</legend>
+      <div class="inline">
+        <div class="field">
+          <label for="date_of_passing">Date of passing</label>
+          <input id="date_of_passing" type="date" name="date_of_passing">
+        </div>
+        <div class="field">
+          <span class="label">Public/private preference</span>
+          <div class="checkbox-grid">
+            <label class="checkbox"><input type="radio" name="memorial_visibility" value="private"> Private</label>
+            <label class="checkbox"><input type="radio" name="memorial_visibility" value="public"> Public</label>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="remembered_as">How you want your pet remembered</label>
+        <textarea id="remembered_as" name="remembered_as" rows="4"></textarea>
+      </div>
+      <div class="field">
+        <label for="message_to_pet">Optional message to your pet</label>
+        <textarea id="message_to_pet" name="message_to_pet" rows="4"></textarea>
+      </div>
+    </fieldset>
+
+    <button type="submit" class="cta">Submit Intake</button>
+  </form>
+
+  <div id="paypal-button-container"></div>
+</section>
+
+<section id="faq" class="faq">
+  <h2>FAQ</h2>
+  <details><summary>Will I receive a confirmation?</summary>
+    <p>Yes. You will receive an automatic confirmation email after submitting your intake.</p>
+  </details>
+</section>
+
+<footer class="footer">
+  <p>© Pawollie Sense • In memory of Oliver Herbert</p>
+</footer>
+
+<script>
+if (window.paypal && typeof window.pawollieGetTotalDue === 'function') {
+  paypal.Buttons({
+    createOrder: function (data, actions) {
+      const amount = window.pawollieGetTotalDue();
+      return actions.order.create({
+        purchase_units: [{ amount: { value: String(amount) } }]
+      });
+    },
+    onApprove: function (data, actions) {
+      return actions.order.capture().then(function () {
+        alert('Payment completed. Your intake has been received.');
+      });
+    }
+  }).render('#paypal-button-container');
+}
+</script>
+
+</body>
+</html>

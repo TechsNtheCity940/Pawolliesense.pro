@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Booth - Pawollie Sense</title>
+  <meta name="description" content="Create a constellation-themed keepsake image and optionally upload a tribute to Pawollie Sense.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+  <script defer src="js/main.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="index.html#home">
+        <img class="brand-mark" src="assets/pawollie-logo.png" alt="Pawollie Sense logo">
+        <div>
+          <div class="brand-text">PA<span class="brand-w" aria-hidden="true">W</span>OLLIE SENSE</div>
+          <p class="tagline">Your dog knows your soul. Now you can learn theirs.</p>
+        </div>
+      </a>
+      <button class="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="site-drawer">
+        <span class="menu-icon" aria-hidden="true"><span></span></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="drawer-backdrop" hidden></div>
+  <nav id="site-drawer" class="drawer" aria-label="Primary navigation">
+    <div class="drawer-header">
+      <div class="drawer-title">Navigate</div>
+      <button class="menu-btn" data-drawer-close aria-label="Close menu">Close</button>
+    </div>
+    <a href="index.html#home">Home</a>
+    <a href="services.html">Services</a>
+    <a href="daily-services.html">Daily Services</a>
+    <a href="about.html">About Us</a>
+    <a href="testimonials.html">Testimonials</a>
+    <a href="story.html">Our Story</a>
+    <a href="memorial.html">Pawmarks Memorial</a>
+    <a href="photobooth.html">Photo Booth</a>
+    <a href="cart.html">Cart</a>
+    <a href="intake.html">Intake Form</a>
+  </nav>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-card">
+          <div class="pill">Constellation accents | Downloadable keepsake | Optional upload</div>
+          <h1 class="hero-title">Photo Booth</h1>
+          <p class="section-lede">
+            Upload a favorite photo and generate a constellation-themed keepsake. You can download it, or submit it as a tribute.
+          </p>
+          <div class="hero-actions">
+            <a class="cta secondary" href="intake.html">Book a Reading</a>
+            <a class="cta secondary" href="memorial.html">Post to Memorial</a>
+          </div>
+          <p class="mini">Tip: Choose a high-resolution photo for the sharpest result.</p>
+        </div>
+        <div class="stack">
+          <img class="hero-logo" src="assets/pawollie-logo.png" alt="Illustrated Pawollie Sense logo featuring Oliver">
+        </div>
+      </div>
+    </section>
+    <section class="section">
+      <div class="container">
+        <div class="grid">
+          <div class="card col-6">
+            <h2 class="section-title">Create your keepsake</h2>
+            <form id="photobooth-form"
+                  name="pawollie-photobooth"
+                  method="POST"
+                  data-netlify="true"
+                  data-netlify-honeypot="bot-field"
+                  action="/thank-you.html"
+                  enctype="multipart/form-data">
+
+              <input type="hidden" name="form-name" value="pawollie-photobooth">
+              <input type="hidden" name="owner_last_name_derived" value="">
+
+              <p hidden>
+                <label>Do not fill this out: <input name="bot-field"></label>
+              </p>
+
+              <div class="notice">
+                <p class="mini">
+                  Photo naming reminder: intake files should be labeled LASTNAME_1, LASTNAME_2, LASTNAME_3, and LASTNAME_4.
+                  Please upload photos before completing the intake form to avoid delays.
+                </p>
+              </div>
+
+              <div class="field">
+                <label for="booth_owner_full_name">Your first and last name</label>
+                <input id="booth_owner_full_name" name="owner_full_name" autocomplete="name" required>
+              </div>
+
+              <div class="field">
+                <label for="booth_pet_name">Pet name (optional)</label>
+                <input id="booth_pet_name" name="pet_name">
+              </div>
+
+              <div class="field">
+                <label for="booth_photo">Upload photo</label>
+                <input id="booth_photo" type="file" name="photo" accept="image/*" required>
+                <p class="help">We will generate a keepsake preview below. You can download it or submit it.</p>
+              </div>
+
+              <div class="field">
+                <span class="label">Accents</span>
+                <div class="checkbox-grid">
+                  <label class="checkbox"><input id="booth_stars" type="checkbox" name="accent_stars" value="yes" checked> Constellation sparkle overlay</label>
+                  <label class="checkbox"><input id="booth_paw" type="checkbox" name="accent_paw" value="yes" checked> Paw watermark</label>
+                </div>
+              </div>
+
+              <div class="field">
+                <span class="label">Public or private preference</span>
+                <div class="checkbox-grid">
+                  <label class="checkbox"><input type="radio" name="visibility" value="private" checked> Private</label>
+                  <label class="checkbox"><input type="radio" name="visibility" value="public"> Public</label>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="booth_message">Optional message</label>
+                <textarea id="booth_message" name="message" rows="4" placeholder="A short tribute, milestone, or memory (optional)"></textarea>
+              </div>
+
+              <div class="hero-actions">
+                <button class="cta secondary" type="button" id="booth_download">Download keepsake</button>
+                <button class="cta" type="submit">Submit tribute</button>
+              </div>
+
+              <p class="mini">
+                File handling: your upload is labeled using your last name and "photobooth" for organization.
+              </p>
+            </form>
+          </div>
+
+          <div class="card col-6">
+            <h2 class="section-title">Preview</h2>
+            <p class="section-lede">Your constellation keepsake preview appears here after you upload a photo.</p>
+            <canvas id="booth_canvas" width="1200" height="1200" class="canvas-frame"></canvas>
+            <p class="mini">If the preview is blank, try a different image format (JPG or PNG) or a smaller file size.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div>Copyright Pawollie Sense. In memory of Oliver Herbert.</div>
+      <div class="mini"><a href="index.html#home">Return home</a></div>
+    </div>
+  </footer>
+</body>
+</html>

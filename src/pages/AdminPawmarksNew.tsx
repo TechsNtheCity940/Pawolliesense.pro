@@ -1,0 +1,198 @@
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import SiteLayout from '@/components/site/SiteLayout';
+import { addProfile, type PawmarkProfile, type TitleStyle } from '@/lib/pawmarksStore';
+import AdminLoginCard from '@/components/admin/AdminLoginCard';
+import { useAdminSession } from '@/hooks/useAdminSession';
+
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '');
+
+const makeId = (petName: string) => {
+  const base = slugify(petName) || 'pawmark';
+  return `${base}-${Date.now().toString(36).slice(-4)}`;
+};
+
+const makePostId = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+const AdminPawmarksNew: React.FC = () => {
+  const { status, error, busy, login } = useAdminSession();
+  const navigate = useNavigate();
+
+  if (status !== 'authed') {
+    return (
+      <AdminLoginCard
+        title="Admin Access"
+        description="Sign in to manage Pawmarks profiles."
+        error={error}
+        busy={busy}
+        onLogin={login}
+      />
+    );
+  }
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+
+    const petName = String(data.get('pet_name') || '').trim();
+    const ownerName = String(data.get('owner_name') || '').trim();
+    const heroImage = String(data.get('hero_image') || '').trim();
+
+    if (!petName || !ownerName || !heroImage) return;
+
+    const titleStyle = (data.get('title_style') as TitleStyle) || 'serif';
+    const idInput = String(data.get('profile_id') || '').trim();
+    const tagline = String(data.get('tagline') || '').trim();
+    const dates = String(data.get('dates') || '').trim();
+    const species = String(data.get('species') || '').trim();
+    const bio = String(data.get('bio') || '').trim();
+
+    const postTitle = String(data.get('post_title') || '').trim();
+    const postBody = String(data.get('post_body') || '').trim();
+    const postImages = String(data.get('post_images') || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const youtubeUrl = String(data.get('post_youtube') || '').trim();
+
+    const posts: PawmarkProfile['posts'] = [];
+    if (postTitle || postBody || postImages.length || youtubeUrl) {
+      posts.push({
+        id: makePostId(),
+        createdAt: Date.now(),
+        title: postTitle || undefined,
+        body: postBody || undefined,
+        images: postImages.length ? postImages : undefined,
+        youtubeUrl: youtubeUrl || undefined
+      });
+    }
+
+    const profile = addProfile({
+      id: idInput || makeId(petName),
+      petName,
+      ownerName,
+      titleStyle,
+      heroImage,
+      tagline: tagline || undefined,
+      dates: dates || undefined,
+      species: species || undefined,
+      bio: bio || undefined,
+      posts
+    });
+
+    form.reset();
+    navigate(`/pawmarks/${profile.id}`);
+  };
+
+  return (
+    <SiteLayout footerLinks={[{ label: 'Pawmarks', to: '/pawmarks' }]}>
+      <section className="section">
+        <div className="container">
+          <div className="card pawmarks-admin-card">
+            <div className="pawmarks-admin-header">
+              <div>
+                <div className="pill">Admin only</div>
+                <h1 className="section-title">Create a Pawmark</h1>
+                <p className="section-lede">Add a memorial profile and optionally a first tribute post.</p>
+              </div>
+              <Link className="cta secondary" to="/pawmarks">
+                Back to Pawmarks
+              </Link>
+            </div>
+
+            <form className="pawmarks-admin-form" onSubmit={handleSubmit}>
+              <div className="pawmarks-admin-row">
+                <label className="field">
+                  <span className="label">Pet name</span>
+                  <input name="pet_name" required placeholder="Oliver" />
+                </label>
+                <label className="field">
+                  <span className="label">Guardian name</span>
+                  <input name="owner_name" required placeholder="Tee" />
+                </label>
+              </div>
+
+              <div className="pawmarks-admin-row">
+                <label className="field">
+                  <span className="label">Hero image URL</span>
+                  <input name="hero_image" required placeholder="/assets/oli.png or https://..." />
+                </label>
+                <label className="field">
+                  <span className="label">Title style</span>
+                  <select name="title_style" defaultValue="serif">
+                    <option value="serif">Serif</option>
+                    <option value="script">Script</option>
+                    <option value="caps">Caps</option>
+                    <option value="soft">Soft</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="pawmarks-admin-row">
+                <label className="field">
+                  <span className="label">Tagline</span>
+                  <input name="tagline" placeholder="A light is kept here." />
+                </label>
+                <label className="field">
+                  <span className="label">Dates</span>
+                  <input name="dates" placeholder="2012-2025 or Forever loved" />
+                </label>
+              </div>
+
+              <div className="pawmarks-admin-row">
+                <label className="field">
+                  <span className="label">Species</span>
+                  <input name="species" placeholder="Dog, cat, rabbit" />
+                </label>
+                <label className="field">
+                  <span className="label">Profile ID (optional)</span>
+                  <input name="profile_id" placeholder="Custom slug if needed" />
+                </label>
+              </div>
+
+              <label className="field">
+                <span className="label">Bio</span>
+                <textarea name="bio" rows={4} placeholder="Short tribute or summary of their spirit."></textarea>
+              </label>
+
+              <div className="pawmarks-admin-divider"></div>
+
+              <h2 className="section-title pawmarks-admin-subtitle">First tribute post (optional)</h2>
+              <div className="pawmarks-admin-row">
+                <label className="field">
+                  <span className="label">Post title</span>
+                  <input name="post_title" placeholder="My forever good boy" />
+                </label>
+                <label className="field">
+                  <span className="label">YouTube URL</span>
+                  <input name="post_youtube" placeholder="https://youtube.com/..." />
+                </label>
+              </div>
+
+              <label className="field">
+                <span className="label">Post body</span>
+                <textarea name="post_body" rows={4} placeholder="Share a memory or message."></textarea>
+              </label>
+
+              <label className="field">
+                <span className="label">Post images (comma separated URLs)</span>
+                <input name="post_images" placeholder="/assets/photo1.png, /assets/photo2.png" />
+              </label>
+
+              <button className="cta" type="submit">
+                Save Pawmark
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </SiteLayout>
+  );
+};
+
+export default AdminPawmarksNew;
