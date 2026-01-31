@@ -105,7 +105,7 @@ async function supabaseFetch(path, { method = 'GET', body } = {}) {
   return data;
 }
 
-async function findOrCreateCustomer({ firstName, lastName, email, phone }) {
+async function findOrCreateCustomer({ firstName, lastName, email }) {
   const query = `/rest/v1/customers?email=eq.${encodeURIComponent(email)}&select=*`;
   const existing = await supabaseFetch(query);
   if (existing && existing.length) return existing[0];
@@ -115,8 +115,7 @@ async function findOrCreateCustomer({ firstName, lastName, email, phone }) {
     body: {
       first_name: firstName,
       last_name: lastName,
-      email,
-      phone: phone || null
+      email
     }
   });
 
@@ -160,8 +159,7 @@ exports.handler = async function handler(event) {
     const customer = await findOrCreateCustomer({
       firstName: first || 'Guardian',
       lastName: last || '',
-      email,
-      phone: payload.phone || null
+      email
     });
 
     const extraNotes = {
