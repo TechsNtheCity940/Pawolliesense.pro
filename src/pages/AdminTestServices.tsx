@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import AdminLoginCard from '@/components/admin/AdminLoginCard';
 import { useAdminSession } from '@/hooks/useAdminSession';
 
@@ -46,8 +46,6 @@ const AdminTestServices: React.FC = () => {
   const [results, setResults] = useState<
     { service: string; readingId?: string; status: 'ok' | 'error'; message: string }[]
   >([]);
-
-  const instantKeys = useMemo(() => new Set(SERVICES.filter((s) => s.type === 'instant').map((s) => s.key)), []);
 
   const fillSampleData = () => {
     setGuardianName('Jordan Rivers');
@@ -125,7 +123,7 @@ const AdminTestServices: React.FC = () => {
     return result?.readingId as string | undefined;
   };
 
-  const generateAndEmail = async (readingId: string, serviceKey: string) => {
+  const generateResponse = async (readingId: string, serviceKey: string) => {
     const response = await fetch('/api/admin/generate-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -136,7 +134,7 @@ const AdminTestServices: React.FC = () => {
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result?.ok) {
-      throw new Error(result?.error || 'Generate + email failed.');
+      throw new Error(result?.error || 'Generate failed.');
     }
     return result;
   };
@@ -147,7 +145,7 @@ const AdminTestServices: React.FC = () => {
       const readingId = await submitIntake(serviceKey, price);
       if (!readingId) throw new Error('No reading ID returned.');
       if (runEmails) {
-        await generateAndEmail(readingId, serviceKey);
+        await generateResponse(readingId, serviceKey);
       }
       setResults((prev) => [
         { service: serviceKey, readingId, status: 'ok', message: 'Submitted successfully.' },
@@ -445,7 +443,7 @@ const AdminTestServices: React.FC = () => {
                 checked={runEmails}
                 onChange={(event) => setRunEmails(event.target.checked)}
               />
-              Auto-generate + email every service
+              Auto-generate a response for every service
             </label>
             <button
               type="button"

@@ -22,6 +22,8 @@ const Admin: React.FC = () => {
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
   const [savingResponses, setSavingResponses] = useState<Record<string, boolean>>({});
   const [generatingReadings, setGeneratingReadings] = useState<Record<string, boolean>>({});
+  const [generatingResponses, setGeneratingResponses] = useState<Record<string, boolean>>({});
+  const [repromptDrafts, setRepromptDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (status === 'authed') {
@@ -74,6 +76,39 @@ const Admin: React.FC = () => {
 
   const handleResponseChange = (readingId: string, value: string) => {
     setResponseDrafts((prev) => ({ ...prev, [readingId]: value }));
+  };
+
+  const handleRepromptChange = (readingId: string, value: string) => {
+    setRepromptDrafts((prev) => ({ ...prev, [readingId]: value }));
+  };
+
+  const handleGenerateResponse = async (readingId: string, serviceKey: string) => {
+    if (!readingId) return;
+    setGeneratingResponses((prev) => ({ ...prev, [readingId]: true }));
+    try {
+      const response = await fetch('/api/admin/generate-email', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          readingId,
+          service: serviceKey,
+          instruction: repromptDrafts[readingId] || ''
+        })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.error || 'Generation failed.');
+      }
+      if (result?.response) {
+        setResponseDrafts((prev) => ({ ...prev, [readingId]: String(result.response) }));
+      }
+      await loadData();
+    } catch (error) {
+      console.error('Error generating response:', error);
+    } finally {
+      setGeneratingResponses((prev) => ({ ...prev, [readingId]: false }));
+    }
   };
 
   const handleSaveResponse = async (readingId: string) => {
@@ -687,12 +722,44 @@ const Admin: React.FC = () => {
                                   <p className="font-body text-sm text-[#3A3A3A]">{reading.pets.additional_notes}</p>
                                 </div>
                               )}
-                              {reading.notes && (
-                                <div className="md:col-span-2">
-                                  <h4 className="font-display font-semibold text-[#2D3561] mb-2">Admin Notes</h4>
-                                  <p className="font-body text-sm text-[#3A3A3A]">{reading.notes}</p>
+                              <div className="md:col-span-2">
+                                <h4 className="font-display font-semibold text-[#2D3561] mb-2">Admin Response</h4>
+                                <textarea
+                                  rows={4}
+                                  value={responseDrafts[String(reading?.id ?? '')] ?? reading?.notes ?? ''}
+                                  onChange={(event) => handleResponseChange(String(reading?.id ?? ''), event.target.value)}
+                                  className="w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
+                                  placeholder="Generate or edit the response here..."
+                                />
+                                <label className="font-body text-xs text-[#3A3A3A]/70 mt-3 block">
+                                  Reprompt instructions (optional)
+                                </label>
+                                <textarea
+                                  rows={2}
+                                  value={repromptDrafts[String(reading?.id ?? '')] ?? ''}
+                                  onChange={(event) => handleRepromptChange(String(reading?.id ?? ''), event.target.value)}
+                                  className="w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-xs focus:outline-none focus:border-[#D4AF37]"
+                                  placeholder="Example: Shorter, more grounded, focus on bond and routines."
+                                />
+                                <div className="flex items-center justify-end mt-3 gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleGenerateResponse(String(reading?.id ?? ''), (reading?.services?.[0] || 'paw_reading'))}
+                                    disabled={Boolean(generatingResponses[String(reading?.id ?? '')])}
+                                    className="px-4 py-2 border border-[#2D3561]/40 text-[#2D3561] font-display text-sm font-semibold rounded-lg hover:bg-[#2D3561]/10 transition-colors disabled:opacity-70"
+                                  >
+                                    {generatingResponses[String(reading?.id ?? '')] ? 'Generating...' : 'Generate AI'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveResponse(String(reading?.id ?? ''))}
+                                    disabled={Boolean(savingResponses[String(reading?.id ?? '')])}
+                                    className="px-4 py-2 bg-[#2D3561] text-white font-display text-sm font-semibold rounded-lg hover:bg-[#3D4A7A] transition-colors disabled:opacity-70"
+                                  >
+                                    {savingResponses[String(reading?.id ?? '')] ? 'Saving...' : 'Save Response'}
+                                  </button>
                                 </div>
-                              )}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -718,6 +785,8 @@ const Admin: React.FC = () => {
                       const serviceLabel = quickServices.length ? getServiceNames(quickServices) : getServiceNames(services);
                       const responseValue = responseDrafts[orderId] ?? reading?.notes ?? '';
                       const isSaving = savingResponses[orderId];
+                      const isGenerating = generatingResponses[orderId];
+                      const repromptValue = repromptDrafts[orderId] ?? '';
 
                       return (
                         <div
@@ -781,7 +850,25 @@ const Admin: React.FC = () => {
                               className="w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
                               placeholder="Write the quick quest response here..."
                             />
-                            <div className="flex items-center justify-end mt-3">
+                            <label className="font-body text-xs text-[#3A3A3A]/70 mt-3 block">
+                              Reprompt instructions (optional)
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={repromptValue}
+                              onChange={(event) => handleRepromptChange(orderId, event.target.value)}
+                              className="w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-xs focus:outline-none focus:border-[#D4AF37]"
+                              placeholder="Example: Make it shorter and more grounded, add 3 actionable steps."
+                            />
+                            <div className="flex items-center justify-end mt-3 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleGenerateResponse(orderId, services[0] || 'quick_quest')}
+                                disabled={Boolean(isGenerating)}
+                                className="px-4 py-2 border border-[#2D3561]/40 text-[#2D3561] font-display text-sm font-semibold rounded-lg hover:bg-[#2D3561]/10 transition-colors disabled:opacity-70"
+                              >
+                                {isGenerating ? 'Generating...' : 'Generate AI'}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleSaveResponse(orderId)}

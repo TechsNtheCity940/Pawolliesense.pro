@@ -189,108 +189,6 @@ const getOpenAiResponse = async ({ prompt, model }) => {
   return { text, id: data?.id, model: data?.model };
 };
 
-const sendResendEmail = async ({ apiKey, from, to, subject, html, text }) => {
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ from, to, subject, html, text })
-  });
-
-  if (!response.ok) {
-    const data = await response.json();
-    throw new Error(data?.message || 'Resend email failed.');
-  }
-};
-
-const sendSendGridEmail = async ({ apiKey, from, to, subject, html, text }) => {
-  const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      personalizations: [{ to: [{ email: to }] }],
-      from: { email: from },
-      subject,
-      content: [
-        { type: 'text/plain', value: text },
-        { type: 'text/html', value: html }
-      ]
-    })
-  });
-
-  if (!response.ok) {
-    const data = await response.json();
-    throw new Error(data?.errors?.[0]?.message || 'SendGrid email failed.');
-  }
-};
-
-const resolveSmtpConfig = () => {
-  const host = process.env.SMTP_HOST || (process.env.GMAIL_USER ? 'smtp.gmail.com' : '');
-  const user = process.env.SMTP_USER || process.env.GMAIL_USER || '';
-  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '';
-  const port = Number(process.env.SMTP_PORT) || 465;
-  const secure = process.env.SMTP_SECURE
-    ? process.env.SMTP_SECURE === 'true'
-    : port === 465;
-
-  if (!host || !user || !pass) return null;
-  return {
-    host,
-    port,
-    secure,
-    auth: { user, pass }
-  };
-};
-
-const sendSmtpEmail = async ({ to, subject, html, text }) => {
-  const smtp = resolveSmtpConfig();
-  if (!smtp) {
-    throw new Error('SMTP configuration is missing.');
-  }
-  const from = process.env.EMAIL_FROM || smtp.auth.user;
-  const transporter = require('nodemailer').createTransport(smtp);
-  await transporter.sendMail({ from, to, subject, html, text });
-};
-
-const sendEmail = async ({ to, subject, html, text }) => {
-  const from = process.env.EMAIL_FROM;
-  if (process.env.RESEND_API_KEY) {
-    await sendResendEmail({
-      apiKey: process.env.RESEND_API_KEY,
-      from: from || 'no-reply@pawolliesense.com',
-      to,
-      subject,
-      html,
-      text
-    });
-    return 'resend';
-  }
-
-  if (process.env.SENDGRID_API_KEY) {
-    await sendSendGridEmail({
-      apiKey: process.env.SENDGRID_API_KEY,
-      from: from || 'no-reply@pawolliesense.com',
-      to,
-      subject,
-      html,
-      text
-    });
-    return 'sendgrid';
-  }
-
-  if (process.env.SMTP_USER || process.env.GMAIL_USER) {
-    await sendSmtpEmail({ to, subject, html, text });
-    return 'smtp';
-  }
-
-  throw new Error('No email provider configured.');
-};
-
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return jsonResponse(405, { ok: false, error: 'Method not allowed.' });
@@ -329,7 +227,11 @@ exports.handler = async (event) => {
     }
 
     const model = process.env.OPENAI_READING_MODEL || 'gpt-4o-mini';
-    const prompt = buildPrompt({ serviceKey, reading });
+    const instruction = String(body.instruction || '').trim();
+    const basePrompt = buildPrompt({ serviceKey, reading });
+    const prompt = instruction
+      ? `${basePrompt}\n\nAdmin reprompt instructions:\n${instruction}`
+      : basePrompt;
     const aiResult = await getOpenAiResponse({ prompt, model });
     const responseText = aiResult.text?.trim();
     if (!responseText) {
@@ -349,25 +251,8 @@ exports.handler = async (event) => {
       }
     });
 
-    const overrideEmail = process.env.TEST_EMAIL_OVERRIDE;
-    const to = overrideEmail || reading.customers?.email;
-    if (!to) {
-      return jsonResponse(400, { ok: false, error: 'Missing customer email.' });
-    }
-
-    const subject = `Your ${serviceKey.replace(/_/g, ' ')} from Pawollie Sense`;
-    const text = `${responseText}\n\nWith care,\nPawollie Sense`;
-    const html = `
-      <div style="font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6;">
-        <p>Here is your ${serviceKey.replace(/_/g, ' ')} response:</p>
-        <p style="white-space: pre-line;">${responseText}</p>
-        <p>With care,<br/>Pawollie Sense</p>
-      </div>
-    `;
-
-    const emailProvider = await sendEmail({ to, subject, html, text });
-    return jsonResponse(200, { ok: true, email_provider: emailProvider });
+    return jsonResponse(200, { ok: true, response: responseText });
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error.message || 'Unable to generate email.' });
+    return jsonResponse(500, { ok: false, error: error.message || 'Unable to generate response.' });
   }
 };
