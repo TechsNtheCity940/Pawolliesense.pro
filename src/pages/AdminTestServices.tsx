@@ -20,6 +20,24 @@ const AdminTestServices: React.FC = () => {
   const [guardianName, setGuardianName] = useState('Test Guardian');
   const [email, setEmail] = useState('test@example.com');
   const [petName, setPetName] = useState('Test Pup');
+  const [species, setSpecies] = useState('Dog');
+  const [breed, setBreed] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [relationship, setRelationship] = useState('Guardian / Owner');
+  const [timezone, setTimezone] = useState('America/Chicago');
+  const [pfTraits, setPfTraits] = useState('');
+  const [pfBond, setPfBond] = useState('');
+  const [bgStory, setBgStory] = useState('');
+  const [ddNotes, setDdNotes] = useState('');
+  const [pmStatus, setPmStatus] = useState('Living');
+  const [pmHonor, setPmHonor] = useState('');
+  const [pmMessage, setPmMessage] = useState('');
+  const [scLocation, setScLocation] = useState('');
+  const [scTime, setScTime] = useState('');
+  const [pawSource, setPawSource] = useState('Photo of paw / pawprint');
+  const [visionStyle, setVisionStyle] = useState('Soft celestial (default)');
+  const [packGoal, setPackGoal] = useState('');
+  const [allPawsNotes, setAllPawsNotes] = useState('');
   const [tone, setTone] = useState('calm');
   const [prompt, setPrompt] = useState('What does my pet need most today?');
   const [context, setContext] = useState('Testing quick quest flow.');
@@ -32,17 +50,32 @@ const AdminTestServices: React.FC = () => {
   const instantKeys = useMemo(() => new Set(SERVICES.filter((s) => s.type === 'instant').map((s) => s.key)), []);
 
   const basePayload = () => ({
-    guardian_name: guardianName.trim() || 'Test Guardian',
-    email: email.trim() || 'test@example.com',
-    pet_name: petName.trim() || 'Test Pup',
-    species: 'Dog',
-    relationship: 'Guardian / Owner',
-    timezone: 'America/Chicago',
-    consent: true,
-    qq_tone: tone,
-    qq_prompt: prompt,
-    qq_context: context
-  });
+      guardian_name: guardianName.trim() || 'Test Guardian',
+      email: email.trim() || 'test@example.com',
+      pet_name: petName.trim() || 'Test Pup',
+      species,
+      breed,
+      birth_date: birthDate || undefined,
+      relationship,
+      timezone,
+      pf_traits: pfTraits,
+      pf_bond: pfBond,
+      bg_story: bgStory,
+      dd_notes: ddNotes,
+      pm_status: pmStatus,
+      pm_honor: pmHonor,
+      pm_message: pmMessage,
+      sc_location: scLocation,
+      sc_time: scTime,
+      paw_source: pawSource,
+      vision_style: visionStyle,
+      pack_goal: packGoal,
+      allpaws_notes: allPawsNotes,
+      consent: true,
+      qq_tone: tone,
+      qq_prompt: prompt,
+      qq_context: context
+    });
 
   const submitIntake = async (serviceKey: string, price: number) => {
     const payload = {
@@ -153,7 +186,7 @@ const AdminTestServices: React.FC = () => {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         <section className="bg-white rounded-2xl shadow-lg p-6">
-          <h2 className="font-display text-xl font-semibold text-[#2D3561] mb-4">Test Info</h2>
+          <h2 className="font-display text-xl font-semibold text-[#2D3561] mb-4">Intake Form (Test Data)</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="font-body text-sm text-[#3A3A3A]">
               Guardian name
@@ -177,6 +210,180 @@ const AdminTestServices: React.FC = () => {
                 className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
                 value={petName}
                 onChange={(event) => setPetName(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A]">
+              Species
+              <select
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
+                value={species}
+                onChange={(event) => setSpecies(event.target.value)}
+              >
+                <option>Dog</option>
+                <option>Cat</option>
+                <option>Other</option>
+              </select>
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A]">
+              Breed / mix
+              <input
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
+                value={breed}
+                onChange={(event) => setBreed(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A]">
+              Birth date
+              <input
+                type="date"
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
+                value={birthDate}
+                onChange={(event) => setBirthDate(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A]">
+              Relationship
+              <select
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
+                value={relationship}
+                onChange={(event) => setRelationship(event.target.value)}
+              >
+                <option>Guardian / Owner</option>
+                <option>Co-guardian</option>
+                <option>Family member</option>
+                <option>Foster</option>
+                <option>Other</option>
+              </select>
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A]">
+              Time zone
+              <select
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
+                value={timezone}
+                onChange={(event) => setTimezone(event.target.value)}
+              >
+                <option value="America/Chicago">America/Chicago</option>
+                <option value="America/New_York">America/New_York</option>
+                <option value="America/Denver">America/Denver</option>
+                <option value="America/Los_Angeles">America/Los_Angeles</option>
+                <option value="UTC">UTC</option>
+              </select>
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A] md:col-span-2">
+              Personality traits (Full Spirit Pawfile)
+              <textarea
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm min-h-[80px]"
+                value={pfTraits}
+                onChange={(event) => setPfTraits(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A] md:col-span-2">
+              Bond description (Full Spirit Pawfile)
+              <textarea
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm min-h-[80px]"
+                value={pfBond}
+                onChange={(event) => setPfBond(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A] md:col-span-2">
+              Behavior story (Behavior Bond Guidance)
+              <textarea
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm min-h-[80px]"
+                value={bgStory}
+                onChange={(event) => setBgStory(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A] md:col-span-2">
+              Deep notes (Star Chart / Paw Reading / Vision)
+              <textarea
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm min-h-[80px]"
+                value={ddNotes}
+                onChange={(event) => setDdNotes(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A]">
+              Memorial status
+              <select
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
+                value={pmStatus}
+                onChange={(event) => setPmStatus(event.target.value)}
+              >
+                <option>Living</option>
+                <option>Passed</option>
+                <option>Transitioning / elder stage</option>
+              </select>
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A]">
+              Star chart location
+              <input
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
+                value={scLocation}
+                onChange={(event) => setScLocation(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A]">
+              Star chart time
+              <input
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
+                value={scTime}
+                onChange={(event) => setScTime(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A]">
+              Paw reading source
+              <select
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
+                value={pawSource}
+                onChange={(event) => setPawSource(event.target.value)}
+              >
+                <option>Photo of paw / pawprint</option>
+                <option>Ink pawprint (memorial)</option>
+                <option>I will upload what I have</option>
+              </select>
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A]">
+              Vision style
+              <select
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
+                value={visionStyle}
+                onChange={(event) => setVisionStyle(event.target.value)}
+              >
+                <option>Soft celestial (default)</option>
+                <option>Tranquil starlight</option>
+                <option>Constellation outline</option>
+                <option>Memorial glow</option>
+              </select>
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A] md:col-span-2">
+              Memorial honor text
+              <textarea
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm min-h-[80px]"
+                value={pmHonor}
+                onChange={(event) => setPmHonor(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A] md:col-span-2">
+              Memorial message
+              <textarea
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm min-h-[80px]"
+                value={pmMessage}
+                onChange={(event) => setPmMessage(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A] md:col-span-2">
+              Pack goal
+              <input
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm"
+                value={packGoal}
+                onChange={(event) => setPackGoal(event.target.value)}
+              />
+            </label>
+            <label className="font-body text-sm text-[#3A3A3A] md:col-span-2">
+              All-Paws notes
+              <textarea
+                className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 text-sm min-h-[80px]"
+                value={allPawsNotes}
+                onChange={(event) => setAllPawsNotes(event.target.value)}
               />
             </label>
             <label className="font-body text-sm text-[#3A3A3A]">
