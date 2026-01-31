@@ -185,7 +185,6 @@ exports.handler = async function handler(event) {
       is_fixed: payload.petFixed || payload.pet_fixed || null,
       is_memorial: payload.pm_status ? payload.pm_status !== 'Living' : false,
       personality_description: payload.personality_description || payload.pf_traits || null,
-      behavior_concerns: payload.behavior_concerns || payload.bg_story || null,
       bond_description: payload.bond_description || payload.pf_bond || null,
       memorial_message: payload.pm_message || payload.memorial_message || null,
       additional_notes: Object.values(extraNotes).some(Boolean) ? JSON.stringify(extraNotes) : null
