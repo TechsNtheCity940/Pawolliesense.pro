@@ -49,6 +49,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/admin/generate-email"
+  to = "/.netlify/functions/admin-generate-email"
+  status = 200
+
+[[redirects]]
   from = "/api/admin/quick-quest-fulfill"
   to = "/.netlify/functions/admin-quick-quest-fulfill"
   status = 200

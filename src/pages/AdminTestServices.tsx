@@ -125,19 +125,18 @@ const AdminTestServices: React.FC = () => {
     return result?.readingId as string | undefined;
   };
 
-  const fulfillQuickQuest = async (readingId: string, serviceKey: string) => {
-    const response = await fetch('/api/admin/quick-quest-fulfill', {
+  const generateAndEmail = async (readingId: string, serviceKey: string) => {
+    const response = await fetch('/api/admin/generate-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         readingId,
-        service: serviceKey,
-        question: prompt
+        service: serviceKey
       })
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result?.ok) {
-      throw new Error(result?.error || 'Quick quest fulfillment failed.');
+      throw new Error(result?.error || 'Generate + email failed.');
     }
     return result;
   };
@@ -147,8 +146,8 @@ const AdminTestServices: React.FC = () => {
     try {
       const readingId = await submitIntake(serviceKey, price);
       if (!readingId) throw new Error('No reading ID returned.');
-      if (runEmails && instantKeys.has(serviceKey)) {
-        await fulfillQuickQuest(readingId, serviceKey);
+      if (runEmails) {
+        await generateAndEmail(readingId, serviceKey);
       }
       setResults((prev) => [
         { service: serviceKey, readingId, status: 'ok', message: 'Submitted successfully.' },
@@ -446,7 +445,7 @@ const AdminTestServices: React.FC = () => {
                 checked={runEmails}
                 onChange={(event) => setRunEmails(event.target.checked)}
               />
-              Auto-complete quick quests + send email
+              Auto-generate + email every service
             </label>
             <button
               type="button"
