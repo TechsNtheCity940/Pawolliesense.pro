@@ -206,65 +206,77 @@ export async function createReading(reading: Reading): Promise<{ data: Reading |
 }
 
 export async function getReadings(): Promise<{ data: any[] | null; error: Error | null }> {
-  const { data, error } = await supabase
-    .from('readings')
-    .select(`
-      *,
-      customers (*),
-      pets (*)
-    `)
-    .order('created_at', { ascending: false });
-
-  return { data, error: error as Error | null };
+  try {
+    const response = await fetch('/api/admin/readings', {
+      method: 'GET',
+      credentials: 'include'
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to fetch readings.');
+    }
+    return { data: result?.data ?? [], error: null };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
 }
 
 export async function getReadingById(readingId: string): Promise<{ data: any | null; error: Error | null }> {
-  const { data, error } = await supabase
-    .from('readings')
-    .select(`
-      *,
-      customers (*),
-      pets (*)
-    `)
-    .eq('id', readingId)
-    .single();
-
-  return { data, error: error as Error | null };
+  try {
+    const response = await fetch(`/api/admin/reading?id=${encodeURIComponent(readingId)}`, {
+      method: 'GET',
+      credentials: 'include'
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to fetch reading.');
+    }
+    return { data: result?.data ?? null, error: null };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
 }
 
 export async function updateReadingStatus(
   readingId: string, 
   status: Reading['status']
 ): Promise<{ data: Reading | null; error: Error | null }> {
-  const updateData: any = { status, updated_at: new Date().toISOString() };
-  if (status === 'completed') {
-    updateData.completed_at = new Date().toISOString();
+  try {
+    const response = await fetch('/api/admin/reading/update', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ readingId, status })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to update reading status.');
+    }
+    return { data: result?.data ?? null, error: null };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
   }
-
-  const { data, error } = await supabase
-    .from('readings')
-    .update(updateData)
-    .eq('id', readingId)
-    .select()
-    .single();
-
-  return { data, error: error as Error | null };
 }
 
 export async function updateReadingNotes(
   readingId: string,
   notes: string
 ): Promise<{ data: Reading | null; error: Error | null }> {
-  const updateData: any = { notes, updated_at: new Date().toISOString() };
-
-  const { data, error } = await supabase
-    .from('readings')
-    .update(updateData)
-    .eq('id', readingId)
-    .select()
-    .single();
-
-  return { data, error: error as Error | null };
+  try {
+    const response = await fetch('/api/admin/reading/update', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ readingId, notes })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to update reading notes.');
+    }
+    return { data: result?.data ?? null, error: null };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
 }
 
 // File upload functions

@@ -34,6 +34,21 @@
   status = 200
 
 [[redirects]]
+  from = "/api/admin/readings"
+  to = "/.netlify/functions/admin-readings"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/reading"
+  to = "/.netlify/functions/admin-reading"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/reading/update"
+  to = "/.netlify/functions/admin-reading-update"
+  status = 200
+
+[[redirects]]
   from = "/api/admin/quick-quest-fulfill"
   to = "/.netlify/functions/admin-quick-quest-fulfill"
   status = 200
