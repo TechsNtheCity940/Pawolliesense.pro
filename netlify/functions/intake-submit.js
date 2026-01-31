@@ -122,12 +122,30 @@ async function findOrCreateCustomer({ firstName, lastName, email }) {
   return Array.isArray(customer) ? customer[0] : customer;
 }
 
+function parseMissingColumn(errorMessage, tableName) {
+  if (!errorMessage || !tableName) return null;
+  const match = String(errorMessage).match(new RegExp(`'([^']+)'\\s+column\\s+of\\s+'${tableName}'`, 'i'));
+  return match ? match[1] : null;
+}
+
 async function createPet(payload) {
-  const pet = await supabaseFetch('/rest/v1/pets', {
-    method: 'POST',
-    body: payload
-  });
-  return Array.isArray(pet) ? pet[0] : pet;
+  let nextPayload = { ...payload };
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const pet = await supabaseFetch('/rest/v1/pets', {
+        method: 'POST',
+        body: nextPayload
+      });
+      return Array.isArray(pet) ? pet[0] : pet;
+    } catch (error) {
+      const missingColumn = parseMissingColumn(error.message, 'pets');
+      if (!missingColumn || !(missingColumn in nextPayload)) {
+        throw error;
+      }
+      delete nextPayload[missingColumn];
+    }
+  }
+  throw new Error('Unable to create pet record.');
 }
 
 async function createReading(payload) {
@@ -185,7 +203,6 @@ exports.handler = async function handler(event) {
       is_fixed: payload.petFixed || payload.pet_fixed || null,
       is_memorial: payload.pm_status ? payload.pm_status !== 'Living' : false,
       personality_description: payload.personality_description || payload.pf_traits || null,
-      bond_description: payload.bond_description || payload.pf_bond || null,
       memorial_message: payload.pm_message || payload.memorial_message || null,
       additional_notes: Object.values(extraNotes).some(Boolean) ? JSON.stringify(extraNotes) : null
     });
