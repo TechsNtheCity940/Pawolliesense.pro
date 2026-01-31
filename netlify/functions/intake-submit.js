@@ -128,24 +128,43 @@ function parseMissingColumn(errorMessage, tableName) {
   return match ? match[1] : null;
 }
 
+async function insertPet(payload) {
+  const pet = await supabaseFetch('/rest/v1/pets', {
+    method: 'POST',
+    body: payload
+  });
+  return Array.isArray(pet) ? pet[0] : pet;
+}
+
 async function createPet(payload) {
   let nextPayload = { ...payload };
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      const pet = await supabaseFetch('/rest/v1/pets', {
-        method: 'POST',
-        body: nextPayload
-      });
-      return Array.isArray(pet) ? pet[0] : pet;
+      return await insertPet(nextPayload);
     } catch (error) {
+      lastError = error;
       const missingColumn = parseMissingColumn(error.message, 'pets');
       if (!missingColumn || !(missingColumn in nextPayload)) {
-        throw error;
+        break;
       }
       delete nextPayload[missingColumn];
     }
   }
-  throw new Error('Unable to create pet record.');
+
+  const fallbackPayload = {
+    customer_id: payload.customer_id,
+    name: payload.name,
+    additional_notes: payload.additional_notes || null
+  };
+
+  try {
+    return await insertPet(fallbackPayload);
+  } catch (error) {
+    const message = error?.message || lastError?.message || 'Unable to create pet record.';
+    throw new Error(message);
+  }
 }
 
 async function createReading(payload) {
