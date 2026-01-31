@@ -49,6 +49,33 @@ const AdminTestServices: React.FC = () => {
 
   const instantKeys = useMemo(() => new Set(SERVICES.filter((s) => s.type === 'instant').map((s) => s.key)), []);
 
+  const fillSampleData = () => {
+    setGuardianName('Jordan Rivers');
+    setEmail('test.pawollie@example.com');
+    setPetName('Nova');
+    setSpecies('Dog');
+    setBreed('Golden Retriever');
+    setBirthDate('2021-05-18');
+    setRelationship('Guardian / Owner');
+    setTimezone('America/Chicago');
+    setPfTraits('Playful, observant, gentle with kids, a little shy with strangers.');
+    setPfBond('Very attached at bedtime, loves routines, gets anxious during storms.');
+    setBgStory('Whines when left alone, pacing by the door. Started after a move.');
+    setDdNotes('Loves water, very food-motivated, calm energy in the evenings.');
+    setPmStatus('Living');
+    setPmHonor('Brave, loyal, and always making us laugh.');
+    setPmMessage('Let me know what helps them feel safe when I leave.');
+    setScLocation('Chicago, IL');
+    setScTime('3:20 PM');
+    setPawSource('Photo of paw / pawprint');
+    setVisionStyle('Soft celestial (default)');
+    setPackGoal('Clarity, comfort, and understanding our bond.');
+    setAllPawsNotes('Focus on emotional needs and best ways to comfort.');
+    setTone('calm');
+    setPrompt('What does my pet need most today?');
+    setContext('New schedule this month, more time at home.');
+  };
+
   const basePayload = () => ({
       guardian_name: guardianName.trim() || 'Test Guardian',
       email: email.trim() || 'test@example.com',
@@ -421,6 +448,13 @@ const AdminTestServices: React.FC = () => {
               />
               Auto-complete quick quests + send email
             </label>
+            <button
+              type="button"
+              onClick={fillSampleData}
+              className="px-4 py-2 border border-[#2D3561]/40 text-[#2D3561] rounded-lg font-display text-sm font-semibold hover:bg-[#2D3561]/10"
+            >
+              Fill sample intake
+            </button>
             <button
               type="button"
               onClick={runAll}
