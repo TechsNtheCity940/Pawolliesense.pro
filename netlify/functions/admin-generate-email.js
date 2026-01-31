@@ -171,7 +171,21 @@ const getOpenAiResponse = async ({ prompt, model }) => {
   if (!response.ok) {
     throw new Error(data?.error?.message || 'OpenAI response failed.');
   }
-  const text = data?.output_text || '';
+  if (data.output_text) {
+    return { text: String(data.output_text).trim(), id: data?.id, model: data?.model };
+  }
+
+  const output = data.output || [];
+  const textChunks = [];
+  output.forEach((item) => {
+    (item.content || []).forEach((content) => {
+      if (content.type === 'output_text' && content.text) {
+        textChunks.push(content.text);
+      }
+    });
+  });
+
+  const text = textChunks.join('\n').trim();
   return { text, id: data?.id, model: data?.model };
 };
 
