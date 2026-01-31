@@ -191,6 +191,9 @@ const WagBookFeed: React.FC = () => {
 
   return (
     <section className="wagbook-shell" aria-label="Wag Book Feed">
+      <div className="wagbook-topper" aria-hidden="true">
+        <img src="/assets/wagbook-topper-transparent.png" alt="" />
+      </div>
       <header className="wagbook-header">
         <div className="wagbook-titleRow">
           <div>

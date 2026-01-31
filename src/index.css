@@ -1556,6 +1556,17 @@ textarea{resize:vertical}
   border-bottom:1px solid var(--border);
   background:rgba(255,255,255,.85);
 }
+.wagbook-topper{
+  display:flex;
+  justify-content:center;
+  padding:16px 16px 0;
+  background:transparent;
+}
+.wagbook-topper img{
+  width:min(260px, 70%);
+  height:auto;
+  display:block;
+}
 .wagbook-titleRow{
   display:flex;
   align-items:flex-start;

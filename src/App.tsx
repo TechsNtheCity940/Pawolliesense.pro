@@ -24,6 +24,7 @@ import ThankYou from "./pages/ThankYou";
 import Admin from "./pages/Admin";
 import AdminPawmarksNew from "./pages/AdminPawmarksNew";
 import AdminWagBook from "./pages/AdminWagBook";
+import AdminTestServices from "./pages/AdminTestServices";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +56,7 @@ const App = () => (
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/pawmarks/new" element={<AdminPawmarksNew />} />
             <Route path="/admin/wagbook" element={<AdminWagBook />} />
+            <Route path="/admin/test-services" element={<AdminTestServices />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

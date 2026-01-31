@@ -286,7 +286,7 @@ async function sendConfirmationEmail({ to, subject, html, text }) {
   throw new Error('No email provider configured.');
 }
 
-const QUICK_QUEST_KEYS = new Set(['quick_quest', 'quick-quest']);
+const QUICK_QUEST_KEYS = new Set(['quick_quest', 'express_pawdate', 'bond_spark', 'quick-quest']);
 
 const shouldFulfillQuickQuest = (services = [], metadataService = '') => {
   const normalized = services.map((service) => String(service || '').toLowerCase());
@@ -331,11 +331,7 @@ const handleQuickQuestFulfillment = async ({ readingId, fallbackEmail, metadataS
     extraNotes.quick_question ||
     extraNotes.question ||
     ''
-  ).trim();
-
-  if (!question) {
-    return { ok: false, reason: 'missing quick quest question' };
-  }
+  ).trim() || 'Please share a gentle insight or supportive check-in for today.';
 
   const styleHints = [
     'Warm and grounded with a gentle cadence.',

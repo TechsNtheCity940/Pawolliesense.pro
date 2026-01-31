@@ -34,6 +34,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/admin/quick-quest-fulfill"
+  to = "/.netlify/functions/admin-quick-quest-fulfill"
+  status = 200
+
+[[redirects]]
   from = "/api/quick-quest"
   to = "/.netlify/functions/quick-quest"
   status = 200
