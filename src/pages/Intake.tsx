@@ -316,7 +316,7 @@ const Intake: React.FC = () => {
     return result;
   };
 
-  const createStripeCheckout = async (serviceKey: string, readingId?: string, email?: string) => {
+  const createPayPalCheckout = async (serviceKey: string, readingId?: string, email?: string) => {
     const response = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -328,7 +328,7 @@ const Intake: React.FC = () => {
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result?.url) {
-      throw new Error(result?.error || 'Stripe checkout failed.');
+      throw new Error(result?.error || 'PayPal checkout failed.');
     }
     return result.url as string;
   };
@@ -354,7 +354,7 @@ const Intake: React.FC = () => {
       setSubmitStatus({ state: 'submitting', message: 'Saving your intake and redirecting to secure checkout...' });
       await submitNetlifyForm(form);
       const intakeResult = await submitIntakeToSupabase(form);
-      const checkoutUrl = await createStripeCheckout(selectedService, intakeResult?.readingId, email);
+      const checkoutUrl = await createPayPalCheckout(selectedService, intakeResult?.readingId, email);
       window.location.href = checkoutUrl;
     } catch (error: any) {
       setSubmitStatus({
@@ -384,7 +384,7 @@ const Intake: React.FC = () => {
                 Choose a service to reveal only the questions needed for that experience.
               </p>
               <div className="intake-pill">
-                <span>Payment:</span> <strong>Stripe</strong>
+                <span>Payment:</span> <strong>PayPal</strong>
                 <span>Delivery:</span> <strong>Email-only</strong>
                 <span>Instant:</span> <strong>$9 Quick Quests</strong>
               </div>
@@ -909,10 +909,10 @@ const Intake: React.FC = () => {
 
               <h2 className="intake-step-title">3) Pay &amp; submit</h2>
               <div className="intake-hint">
-                You will be redirected to Stripe to complete payment securely.
+                You will be redirected to PayPal to complete payment securely.
               </div>
               <button className="cta wide" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Redirecting to Stripe...' : 'Submit & Pay with Stripe'}
+                {isSubmitting ? 'Redirecting to PayPal...' : 'Submit & Pay with PayPal'}
               </button>
               <div className="intake-fineprint">
                 By paying, you confirm the information submitted is accurate to the best of your knowledge.
@@ -931,7 +931,7 @@ const Intake: React.FC = () => {
 
               {isInstant ? (
                 <div className="notice intake-summary-note intake-note-ok">
-                  Instant delivery enabled. Your result will be generated and emailed automatically after Stripe confirms.
+                  Instant delivery enabled. Your result will be generated after payment confirmation.
                 </div>
               ) : null}
 

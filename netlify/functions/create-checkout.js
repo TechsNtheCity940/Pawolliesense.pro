@@ -13,24 +13,30 @@ const ITEM_CATALOG = {
   furmily_pack: { name: 'Furmily Pack (Multi-Pet Household Pack)', price: 79 }
 };
 
-function buildLineItems(cart) {
+function buildItems(cart) {
   const items = [];
   const itemIds = [];
+  let total = 0;
 
   (cart || []).forEach((entry) => {
     const item = ITEM_CATALOG[entry?.id];
     if (!item) return;
-    itemIds.push(entry.id);
     const quantity = Number(entry.quantity ?? 1) || 1;
-    const unitAmount = Math.round(item.price * 100);
+    const unitPrice = Number(item.price || 0);
+    total += unitPrice * quantity;
+    itemIds.push(entry.id);
     items.push({
       name: item.name,
-      unitAmount,
-      quantity
+      unit_amount: {
+        currency_code: 'USD',
+        value: unitPrice.toFixed(2)
+      },
+      quantity: String(quantity),
+      category: 'DIGITAL_GOODS'
     });
   });
 
-  return { items, itemIds };
+  return { items, itemIds, total };
 }
 
 function resolveOrigin(headers) {
@@ -42,17 +48,42 @@ function resolveOrigin(headers) {
   );
 }
 
+function paypalBaseUrl() {
+  return process.env.PAYPAL_ENV === 'live'
+    ? 'https://api-m.paypal.com'
+    : 'https://api-m.sandbox.paypal.com';
+}
+
+async function getPayPalAccessToken() {
+  const clientId = process.env.PAYPAL_CLIENT_ID;
+  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing PayPal credentials.');
+  }
+
+  const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  const response = await fetch(`${paypalBaseUrl()}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: 'grant_type=client_credentials'
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.access_token) {
+    throw new Error(data?.error_description || data?.error || 'Unable to authenticate with PayPal.');
+  }
+  return data.access_token;
+}
+
 exports.handler = async function handler(event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed.' }) };
   }
 
   try {
-    const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    if (!stripeSecret) {
-      throw new Error('Missing Stripe secret key.');
-    }
-
     const payload = event.body ? JSON.parse(event.body) : {};
     const cart = Array.isArray(payload.cart)
       ? payload.cart
@@ -61,71 +92,79 @@ exports.handler = async function handler(event) {
         : payload.selected_service
           ? [{ id: payload.selected_service, quantity: 1 }]
           : [];
-    const { items: lineItems, itemIds } = buildLineItems(cart);
 
-    if (!lineItems.length) {
+    const { items, itemIds, total } = buildItems(cart);
+    if (!items.length || total <= 0) {
       return { statusCode: 400, body: JSON.stringify({ error: 'No valid items selected.' }) };
     }
 
     const origin = resolveOrigin(event.headers);
-    const successUrl = process.env.STRIPE_SUCCESS_URL || `${origin}/thank-you`;
-    const cancelUrl = process.env.STRIPE_CANCEL_URL || `${origin}/intake`;
+    const returnUrl = process.env.PAYPAL_RETURN_URL || `${origin}/thank-you`;
+    const cancelUrl = process.env.PAYPAL_CANCEL_URL || `${origin}/intake`;
+    const accessToken = await getPayPalAccessToken();
 
-    const params = new URLSearchParams();
-    params.append('mode', 'payment');
-    params.append('payment_method_types[0]', 'card');
-    params.append('success_url', successUrl);
-    params.append('cancel_url', cancelUrl);
-    if (payload.readingId) {
-      params.append('client_reference_id', String(payload.readingId));
-      params.append('metadata[reading_id]', String(payload.readingId));
-    } else {
-      params.append('client_reference_id', `pawollie_${Date.now()}`);
-    }
-    params.append('metadata[order_source]', 'pawollie-intake');
-    if (itemIds.length) {
-      params.append('metadata[item_ids]', itemIds.join(','));
-      params.append('metadata[primary_service]', itemIds[0]);
-    } else if (payload.service || payload.selected_service) {
-      params.append('metadata[primary_service]', String(payload.service || payload.selected_service));
-    }
-    if (payload.email) {
-      params.append('customer_email', String(payload.email));
-      params.append('metadata[email]', String(payload.email));
-    }
-    lineItems.forEach((item, index) => {
-      params.append(`line_items[${index}][price_data][currency]`, 'usd');
-      params.append(`line_items[${index}][price_data][product_data][name]`, item.name);
-      params.append(`line_items[${index}][price_data][unit_amount]`, String(item.unitAmount));
-      params.append(`line_items[${index}][quantity]`, String(item.quantity));
-    });
+    const orderPayload = {
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          custom_id: payload.readingId ? String(payload.readingId) : undefined,
+          reference_id: itemIds[0] || undefined,
+          description: itemIds.map((id) => ITEM_CATALOG[id]?.name).filter(Boolean).join(', ').slice(0, 127),
+          amount: {
+            currency_code: 'USD',
+            value: total.toFixed(2),
+            breakdown: {
+              item_total: {
+                currency_code: 'USD',
+                value: total.toFixed(2)
+              }
+            }
+          },
+          items
+        }
+      ],
+      application_context: {
+        brand_name: 'Pawollie Sense',
+        user_action: 'PAY_NOW',
+        return_url: returnUrl,
+        cancel_url: cancelUrl
+      }
+    };
 
-    const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    const response = await fetch(`${paypalBaseUrl()}/v2/checkout/orders`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${stripeSecret}`,
-        'Content-Type': 'application/x-www-form-urlencoded'
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
       },
-      body: params
+      body: JSON.stringify(orderPayload)
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       return {
         statusCode: response.status,
-        body: JSON.stringify({ error: data?.error?.message || 'Stripe checkout failed.' })
+        body: JSON.stringify({ error: data?.message || data?.details?.[0]?.description || 'PayPal order creation failed.' })
+      };
+    }
+
+    const approveUrl = (data?.links || []).find((link) => link.rel === 'approve')?.href;
+    if (!approveUrl) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: 'PayPal approval URL was not returned.' })
       };
     }
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ id: data.id, url: data.url })
+      body: JSON.stringify({ id: data.id, url: approveUrl, provider: 'paypal' })
     };
   } catch (error) {
-    console.error(error);
+    console.error('PayPal checkout error', error.message);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: error.message || 'Unable to start PayPal checkout.' })
     };
   }
 };

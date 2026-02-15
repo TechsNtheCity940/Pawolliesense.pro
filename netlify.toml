@@ -14,6 +14,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/paypal/capture"
+  to = "/.netlify/functions/paypal-capture"
+  status = 200
+
+[[redirects]]
   from = "/api/admin/login"
   to = "/.netlify/functions/admin-login"
   status = 200
