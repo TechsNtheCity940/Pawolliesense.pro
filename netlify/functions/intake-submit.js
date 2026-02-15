@@ -56,6 +56,16 @@ function toBoolean(value) {
   return ['true', 'on', '1', 'yes'].includes(String(value || '').toLowerCase());
 }
 
+function pickFieldsByPrefix(payload, prefix) {
+  return Object.entries(payload || {}).reduce((acc, [key, value]) => {
+    if (!String(key).startsWith(prefix)) return acc;
+    acc[key] = Array.isArray(value)
+      ? value.map((item) => String(item || '').trim()).filter(Boolean)
+      : String(value || '').trim();
+    return acc;
+  }, {});
+}
+
 function normalizeServices(payload) {
   if (Array.isArray(payload.services) && payload.services.length) {
     return payload.services.map((service) => String(service).trim()).filter(Boolean);
@@ -198,6 +208,7 @@ exports.handler = async function handler(event) {
       lastName: last || '',
       email
     });
+    const furmilySelections = pickFieldsByPrefix(payload, 'furmily_pet_');
 
     const extraNotes = {
       intake_notes: payload.dd_notes || payload.pf_communicate || payload.bg_story || payload.pack_goal || '',
@@ -208,6 +219,69 @@ exports.handler = async function handler(event) {
       quick_context: payload.qq_context || '',
       relationship: payload.relationship || '',
       timezone: payload.timezone || '',
+      age: payload.age || '',
+      sex: payload.sex || '',
+      owner_duration: payload.owner_duration || '',
+      rescue_rehomed: payload.rescue_rehomed || '',
+      rescue_details: payload.rescue_details || '',
+      home_environment: payload.home_environment || '',
+      energy_level: payload.energy_level || '',
+      primary_goal: payload.primary_goal || '',
+      top_concerns: payload.top_concerns || '',
+      behavior_notes: payload.behavior_notes || '',
+      health_notes: payload.health_notes || '',
+      training_history: payload.training_history || '',
+      birth_time: payload.birth_time || '',
+      birth_location: payload.birth_location || payload.sc_location || '',
+      birth_unknown_notes: payload.birth_unknown_notes || '',
+      owner_tone: payload.owner_tone || payload.qq_tone || '',
+      spiritual_level: payload.spiritual_level || '',
+      want_action_steps: payload.want_action_steps || '',
+      avoid_mentions: payload.avoid_mentions || '',
+      core_photo_face: toBoolean(payload.core_photo_face),
+      core_photo_full_body: toBoolean(payload.core_photo_full_body),
+      core_photo_paw: toBoolean(payload.core_photo_paw),
+      core_photo_candid: toBoolean(payload.core_photo_candid),
+      core_photo_memorial: toBoolean(payload.core_photo_memorial),
+      bg_behaviors: payload.bg_behaviors || '',
+      bg_start: payload.bg_start || payload.bg_when || '',
+      bg_triggers: payload.bg_triggers || '',
+      bg_frequency_intensity: payload.bg_frequency_intensity || '',
+      bg_helps_worse: payload.bg_helps_worse || '',
+      bg_routine: payload.bg_routine || '',
+      bg_recent_changes: payload.bg_recent_changes || payload.bg_changes || '',
+      bg_vet_notes: payload.bg_vet_notes || '',
+      pl_opt_in: payload.pl_opt_in || '',
+      pl_depth: payload.pl_depth || '',
+      pl_avoid: payload.pl_avoid || '',
+      pl_focus: payload.pl_focus || '',
+      pl_paw_photos: payload.pl_paw_photos || '',
+      bc_birth_date: payload.birth_date || '',
+      bc_birth_time: payload.sc_time || payload.birth_time || '',
+      bc_birth_location: payload.sc_location || payload.birth_location || '',
+      bc_unknown_notes: payload.bc_unknown_notes || payload.birth_unknown_notes || '',
+      memorial_story: payload.memorial_story || '',
+      memorial_quirks: payload.memorial_quirks || '',
+      memorial_hardest_part: payload.memorial_hardest_part || '',
+      memorial_closure_message: payload.memorial_closure_message || '',
+      memorial_spiritual_level: payload.memorial_spiritual_level || '',
+      memorial_avoid: payload.memorial_avoid || '',
+      pf_traits: payload.pf_traits || '',
+      pf_love: payload.pf_love || '',
+      pf_communicate: payload.pf_communicate || '',
+      pf_bond: payload.pf_bond || '',
+      bg_focus: payload.bg_focus || '',
+      bg_story: payload.bg_story || '',
+      dd_focus: payload.dd_focus || '',
+      dd_notes: payload.dd_notes || '',
+      paw_source: payload.paw_source || '',
+      vision_style: payload.vision_style || '',
+      sc_time: payload.sc_time || '',
+      sc_location: payload.sc_location || '',
+      pack_goal: payload.pack_goal || '',
+      allpaws_notes: payload.allpaws_notes || '',
+      furmily_count: payload.furmily_count || '',
+      furmily_selections: furmilySelections,
       selected_services: services,
       keepsakes: normalizeArray(payload.keepsakes)
     };

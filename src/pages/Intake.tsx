@@ -12,6 +12,16 @@ type ServiceOption = {
   type: 'instant' | 'crafted';
 };
 
+declare global {
+  interface Window {
+    paypal?: {
+      HostedButtons: (options: { hostedButtonId: string }) => {
+        render: (selector: string) => Promise<void>;
+      };
+    };
+  }
+}
+
 const SERVICES: ServiceOption[] = [
   {
     key: 'full_spirit_pawfile',
@@ -202,6 +212,53 @@ const KEEPSAKES = [
     cta: 'Add printed book'
   }
 ];
+
+const PAYPAL_HOSTED_SDK_SRC = 'https://www.paypal.com/sdk/js?client-id=BAAp8LDFJ3ShdhXqqjkmc47raYL4GHUAebnE98zbMmm68og4ZWfOMgOnWxK8r_fIx4rz3UTPaVMI6l2rGk&components=hosted-buttons&enable-funding=venmo&currency=USD';
+
+const PAYPAL_HOSTED_BUTTON_BY_SERVICE: Record<string, string> = {
+  pawmarks_pack: '4ERWHGFHAEXL4',
+  pawmark_post: 'NZCUPV236B3LQ',
+  full_spirit_pawfile: 'RDMZX65XWUDPJ',
+  behavior_bond_guidance: 'K8DB358DKGQ7C',
+  star_chart: 'U3DWX4QSS2VKW',
+  paw_reading: 'U3DWX4QSS2VKW',
+  pawollie_vision: 'U3DWX4QSS2VKW',
+  express_pawdate: '8BGQ5M2KS2D78',
+  quick_quest: '8BGQ5M2KS2D78',
+  bond_spark: '8BGQ5M2KS2D78',
+  all_paws_pack: 'PYDDPVJGRKFJ2',
+  furmily_pack: '6DHTR8PG3XSSS'
+};
+
+let paypalHostedSdkPromise: Promise<void> | null = null;
+
+const loadPayPalHostedSdk = () => {
+  if (typeof window === 'undefined') return Promise.resolve();
+  if (window.paypal?.HostedButtons) return Promise.resolve();
+  if (paypalHostedSdkPromise) return paypalHostedSdkPromise;
+
+  paypalHostedSdkPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${PAYPAL_HOSTED_SDK_SRC}"]`);
+    if (existing) {
+      if (window.paypal?.HostedButtons) {
+        resolve();
+        return;
+      }
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Unable to load PayPal SDK.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = PAYPAL_HOSTED_SDK_SRC;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Unable to load PayPal SDK.'));
+    document.body.appendChild(script);
+  });
+
+  return paypalHostedSdkPromise;
+};
 const Intake: React.FC = () => {
   const formRef = useRef<HTMLFormElement | null>(null);
   const location = useLocation();
@@ -214,6 +271,9 @@ const Intake: React.FC = () => {
     message?: string;
   }>({ state: 'idle' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [intakeReadyForPayment, setIntakeReadyForPayment] = useState(false);
+  const [savedReadingId, setSavedReadingId] = useState<string>('');
+  const [paypalHostedError, setPaypalHostedError] = useState('');
 
   const selectedServiceMeta = useMemo(
     () => SERVICES.find((service) => service.key === selectedService) ?? null,
@@ -238,6 +298,14 @@ const Intake: React.FC = () => {
   const showKeepsakes = Boolean(isCrafted && selectedService !== 'pawmark_post');
   const showCommunity = Boolean(isCrafted && selectedService !== 'pawmark_post');
   const wantsPrintedBook = keepsakes.includes('printed_book');
+  const hostedButtonId = useMemo(
+    () => PAYPAL_HOSTED_BUTTON_BY_SERVICE[selectedService] || '',
+    [selectedService]
+  );
+  const hostedContainerId = useMemo(
+    () => (hostedButtonId ? `paypal-hosted-container-${hostedButtonId.toLowerCase()}` : ''),
+    [hostedButtonId]
+  );
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -247,6 +315,47 @@ const Intake: React.FC = () => {
       setSelectedService(service);
     }
   }, [location.search]);
+
+  useEffect(() => {
+    setIntakeReadyForPayment(false);
+    setSavedReadingId('');
+    setPaypalHostedError('');
+    setSubmitStatus((prev) => (prev.state === 'submitting' ? prev : { state: 'idle' }));
+  }, [selectedService]);
+
+  useEffect(() => {
+    if (!intakeReadyForPayment || !hostedButtonId || !hostedContainerId) return;
+
+    let cancelled = false;
+    const renderHostedButton = async () => {
+      try {
+        setPaypalHostedError('');
+        await loadPayPalHostedSdk();
+        if (cancelled) return;
+
+        const container = document.getElementById(hostedContainerId);
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (!window.paypal?.HostedButtons) {
+          throw new Error('PayPal hosted buttons are not available.');
+        }
+
+        await window.paypal.HostedButtons({ hostedButtonId }).render(`#${hostedContainerId}`);
+      } catch (error: any) {
+        if (cancelled) return;
+        setPaypalHostedError(error?.message || 'Unable to load PayPal button.');
+      }
+    };
+
+    renderHostedButton();
+
+    return () => {
+      cancelled = true;
+      const container = document.getElementById(hostedContainerId);
+      if (container) container.innerHTML = '';
+    };
+  }, [hostedButtonId, hostedContainerId, intakeReadyForPayment]);
 
   const toggleKeepsake = (key: string) => {
     setKeepsakes((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]));
@@ -351,10 +460,24 @@ const Intake: React.FC = () => {
 
     try {
       setIsSubmitting(true);
-      setSubmitStatus({ state: 'submitting', message: 'Saving your intake and redirecting to secure checkout...' });
+      setIntakeReadyForPayment(false);
+      setSavedReadingId('');
+      setSubmitStatus({ state: 'submitting', message: 'Saving your intake...' });
       await submitNetlifyForm(form);
       const intakeResult = await submitIntakeToSupabase(form);
-      const checkoutUrl = await createPayPalCheckout(selectedService, intakeResult?.readingId, email);
+      const readingId = String(intakeResult?.readingId || '').trim();
+      setSavedReadingId(readingId);
+
+      if (hostedButtonId) {
+        setIntakeReadyForPayment(true);
+        setSubmitStatus({
+          state: 'success',
+          message: 'Intake saved. Complete payment with the PayPal button below.'
+        });
+        return;
+      }
+
+      const checkoutUrl = await createPayPalCheckout(selectedService, readingId, email);
       window.location.href = checkoutUrl;
     } catch (error: any) {
       setSubmitStatus({
@@ -518,6 +641,129 @@ const Intake: React.FC = () => {
                 </div>
               </div>
 
+              <section className="intake-module">
+                <h2>Universal Intake (Required for all services)</h2>
+                <div className="intake-row">
+                  <div>
+                    <label>Age (or best estimate) <span className="intake-req">*</span></label>
+                    <input name="age" required placeholder="Example: 3 years" />
+                  </div>
+                  <div>
+                    <label>Sex + spayed/neutered <span className="intake-req">*</span></label>
+                    <input name="sex" required placeholder="Example: Female, spayed" />
+                  </div>
+                </div>
+                <div className="intake-row">
+                  <div>
+                    <label>How long have you had your pet? <span className="intake-req">*</span></label>
+                    <input name="owner_duration" required placeholder="Example: 2 years" />
+                  </div>
+                  <div>
+                    <label>Rescue/rehomed? (yes/no)</label>
+                    <select name="rescue_rehomed" defaultValue="no">
+                      <option value="no">No</option>
+                      <option value="yes">Yes</option>
+                      <option value="unknown">Unknown</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="intake-field">
+                  <label>Rescue/rehomed details (if yes)</label>
+                  <textarea name="rescue_details" placeholder="Share any adoption, foster, or rehoming context."></textarea>
+                </div>
+                <div className="intake-row">
+                  <div>
+                    <label>Home environment <span className="intake-req">*</span></label>
+                    <input name="home_environment" required placeholder="Kids, other pets, space, routine" />
+                  </div>
+                  <div>
+                    <label>Energy level <span className="intake-req">*</span></label>
+                    <select name="energy_level" defaultValue="medium">
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="intake-field">
+                  <label>Primary goal for this reading <span className="intake-req">*</span></label>
+                  <textarea name="primary_goal" required placeholder="What result do you want from this service?"></textarea>
+                </div>
+                <div className="intake-field">
+                  <label>Top 3 concerns <span className="intake-req">*</span></label>
+                  <textarea name="top_concerns" required placeholder="Bond, behavior, anxiety, grief, communication, etc."></textarea>
+                </div>
+                <div className="intake-field">
+                  <label>Behavior notes</label>
+                  <textarea name="behavior_notes" placeholder="What/when/where/how often/triggers."></textarea>
+                </div>
+                <div className="intake-field">
+                  <label>Health notes</label>
+                  <textarea name="health_notes" placeholder="Known conditions, meds, vet context."></textarea>
+                </div>
+                <div className="intake-field">
+                  <label>Training history</label>
+                  <textarea name="training_history" placeholder="What has been tried and results."></textarea>
+                </div>
+                <div className="intake-row">
+                  <div>
+                    <label>Birth time (if known)</label>
+                    <input name="birth_time" placeholder="Exact, approximate, or unknown" />
+                  </div>
+                  <div>
+                    <label>Birth location (if known)</label>
+                    <input name="birth_location" placeholder="City, State, Country" />
+                  </div>
+                </div>
+                <div className="intake-field">
+                  <label>If birth details are unknown, add notes</label>
+                  <textarea name="birth_unknown_notes" placeholder="Estimated timeframe + location or unknown context."></textarea>
+                </div>
+                <div className="intake-row">
+                  <div>
+                    <label>Preferred tone</label>
+                    <select name="owner_tone" defaultValue="gentle">
+                      <option value="gentle">Gentle</option>
+                      <option value="direct">Direct</option>
+                      <option value="uplifting">Uplifting</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Spiritual depth</label>
+                    <select name="spiritual_level" defaultValue="medium">
+                      <option value="light">Light</option>
+                      <option value="medium">Medium</option>
+                      <option value="deep">Deep</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="intake-row">
+                  <div>
+                    <label>Want actionable steps?</label>
+                    <select name="want_action_steps" defaultValue="yes">
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Anything to avoid mentioning?</label>
+                    <input name="avoid_mentions" placeholder="Optional boundaries or topics to avoid" />
+                  </div>
+                </div>
+                <div className="intake-field">
+                  <label>Photo checklist (mark what you are providing)</label>
+                  <div className="intake-row">
+                    <label className="intake-checkbox"><input type="checkbox" name="core_photo_face" /> Face/eyes close-up</label>
+                    <label className="intake-checkbox"><input type="checkbox" name="core_photo_full_body" /> Full body standing</label>
+                  </div>
+                  <div className="intake-row">
+                    <label className="intake-checkbox"><input type="checkbox" name="core_photo_paw" /> Paw pads close-up</label>
+                    <label className="intake-checkbox"><input type="checkbox" name="core_photo_candid" /> Candid in their element</label>
+                  </div>
+                  <label className="intake-checkbox"><input type="checkbox" name="core_photo_memorial" /> Memorial photos (if applicable)</label>
+                </div>
+              </section>
+
               <div className="intake-field">
                 <label>Upload photos (optional but recommended)</label>
                 <input id="photos" type="file" name="photos" multiple accept="image/*" />
@@ -527,7 +773,7 @@ const Intake: React.FC = () => {
               {isQuick ? (
                 <section className="intake-module">
                   <h2>{selectedServiceMeta?.name ?? 'Quick Quest'} ({selectedServiceMeta?.priceLabel ?? '$9'})</h2>
-                  <p className="intake-hint">Instant delivery after Stripe confirms payment.</p>
+                  <p className="intake-hint">Instant delivery after payment confirms.</p>
                   <input type="hidden" name="qq_type" value={selectedService} />
                   <div className="intake-row">
                     <div>
@@ -610,6 +856,44 @@ const Intake: React.FC = () => {
                     <label>Recent life changes?</label>
                     <textarea name="bg_changes" placeholder="Move, new schedule, new pet, loss, health changes..."></textarea>
                   </div>
+                  <div className="intake-divider"></div>
+                  <h3>Behavior Deep-Dive Add-on Intake</h3>
+                  <div className="intake-field">
+                    <label>1) Exact behaviors of concern</label>
+                    <textarea name="bg_behaviors" placeholder="List each behavior that concerns you."></textarea>
+                  </div>
+                  <div className="intake-row">
+                    <div>
+                      <label>2) When did each begin?</label>
+                      <input name="bg_start" placeholder="Example: after moving homes in November" />
+                    </div>
+                    <div>
+                      <label>3) Triggers you notice</label>
+                      <input name="bg_triggers" placeholder="Sounds, strangers, separation, routines, etc." />
+                    </div>
+                  </div>
+                  <div className="intake-row">
+                    <div>
+                      <label>4) Frequency + intensity (1-10)</label>
+                      <input name="bg_frequency_intensity" placeholder="Example: daily, intensity 7/10" />
+                    </div>
+                    <div>
+                      <label>5) What helps / what worsens?</label>
+                      <input name="bg_helps_worse" placeholder="Calming routines, specific stressors, etc." />
+                    </div>
+                  </div>
+                  <div className="intake-field">
+                    <label>6) Daily routine</label>
+                    <textarea name="bg_routine" placeholder="Wake, meals, walks, play, alone time."></textarea>
+                  </div>
+                  <div className="intake-field">
+                    <label>7) Recent changes</label>
+                    <textarea name="bg_recent_changes" placeholder="Move, new pet, new person, schedule changes."></textarea>
+                  </div>
+                  <div className="intake-field">
+                    <label>8) Vet notes</label>
+                    <textarea name="bg_vet_notes" placeholder="Pain, allergies, hearing/vision, meds, vet observations."></textarea>
+                  </div>
                 </section>
               ) : null}
 
@@ -650,6 +934,43 @@ const Intake: React.FC = () => {
                     <label>Unspoken message request (optional)</label>
                     <textarea name="pm_message" placeholder="What do you wish you could hear from them? What do you hope to understand?"></textarea>
                   </div>
+                  <div className="intake-divider"></div>
+                  <h3>Memorial / Grief Support Intake</h3>
+                  <div className="intake-field">
+                    <label>Owner's relationship story</label>
+                    <textarea name="memorial_story" placeholder="Share the relationship story in a few sentences."></textarea>
+                  </div>
+                  <div className="intake-row">
+                    <div>
+                      <label>Favorite quirks / routines</label>
+                      <input name="memorial_quirks" placeholder="Little habits, routines, favorite things." />
+                    </div>
+                    <div>
+                      <label>Hardest part right now</label>
+                      <input name="memorial_hardest_part" placeholder="What feels heaviest today?" />
+                    </div>
+                  </div>
+                  <div className="intake-row">
+                    <div>
+                      <label>Closure message as if from your pet?</label>
+                      <select name="memorial_closure_message" defaultValue="no">
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Spiritual level for memorial</label>
+                      <select name="memorial_spiritual_level" defaultValue="medium">
+                        <option value="light">Light</option>
+                        <option value="medium">Medium</option>
+                        <option value="deep">Deep</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="intake-field">
+                    <label>Anything to avoid mentioning?</label>
+                    <input name="memorial_avoid" placeholder="Optional boundaries for memorial language." />
+                  </div>
                   <div className="intake-row">
                     <div>
                       <label>Song tribute (YouTube link optional)</label>
@@ -681,6 +1002,7 @@ const Intake: React.FC = () => {
 
                   {selectedService === 'star_chart' ? (
                     <div className="intake-field">
+                      <h3>Birth Chart Details</h3>
                       <div className="intake-row">
                         <div>
                           <label>Birth location</label>
@@ -692,11 +1014,55 @@ const Intake: React.FC = () => {
                         </div>
                       </div>
                       <div className="intake-hint">If time is unknown, we create a symbolic reading using date + place.</div>
+                      <div className="intake-field">
+                        <label>If unknown, add adoption date/location and early-life notes</label>
+                        <textarea name="bc_unknown_notes" placeholder="Include any estimate or known timeline notes."></textarea>
+                      </div>
                     </div>
                   ) : null}
 
                   {selectedService === 'paw_reading' ? (
                     <div className="intake-field">
+                      <h3>Past Life Opt-in Intake</h3>
+                      <div className="intake-row">
+                        <div>
+                          <label>Comfortable with symbolic spiritual framing?</label>
+                          <select name="pl_opt_in" defaultValue="yes">
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label>Depth level</label>
+                          <select name="pl_depth" defaultValue="light">
+                            <option value="light">Light</option>
+                            <option value="medium">Medium</option>
+                            <option value="deep">Deep</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="intake-row">
+                        <div>
+                          <label>Focus area</label>
+                          <select name="pl_focus" defaultValue="bond">
+                            <option value="bond">Bond</option>
+                            <option value="lessons">Lessons</option>
+                            <option value="purpose">Purpose</option>
+                            <option value="patterns">Patterns</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label>Paw photos provided?</label>
+                          <select name="pl_paw_photos" defaultValue="yes">
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="intake-field">
+                        <label>Anything to avoid mentioning?</label>
+                        <textarea name="pl_avoid" placeholder="Share topics you'd like excluded."></textarea>
+                      </div>
                       <label>Pawprint source</label>
                       <select name="paw_source" defaultValue="Photo of paw / pawprint">
                         <option>Photo of paw / pawprint</option>
@@ -749,6 +1115,120 @@ const Intake: React.FC = () => {
                         name="allpaws_notes"
                         placeholder="Key behaviors, bond story, memorial context (if any), what you want emphasized..."
                       ></textarea>
+                      <div className="intake-divider"></div>
+                      <h3>Personality Focus details</h3>
+                      <div className="intake-row">
+                        <div>
+                          <label>Top personality words (up to 6)</label>
+                          <input name="pf_traits" placeholder="gentle, watchful, playful, wise..." />
+                        </div>
+                        <div>
+                          <label>How do they show love?</label>
+                          <input name="pf_love" placeholder="cuddles, follows me, brings toys, eye contact..." />
+                        </div>
+                      </div>
+                      <div className="intake-field">
+                        <label>How do they communicate most clearly?</label>
+                        <textarea name="pf_communicate" placeholder="Body language, sounds, routines, behaviors."></textarea>
+                      </div>
+                      <div className="intake-field">
+                        <label>Bond snapshot</label>
+                        <textarea name="pf_bond" placeholder="How you feel together and what feels most special."></textarea>
+                      </div>
+
+                      <div className="intake-divider"></div>
+                      <h3>Behavior Focus details</h3>
+                      <div className="intake-field">
+                        <label>Exact behaviors of concern</label>
+                        <textarea name="bg_behaviors" placeholder="List each behavior, when it happens, and what triggers it."></textarea>
+                      </div>
+                      <div className="intake-row">
+                        <div>
+                          <label>When did each begin?</label>
+                          <input name="bg_start" placeholder="Example: after moving homes in November" />
+                        </div>
+                        <div>
+                          <label>Frequency + intensity (1-10)</label>
+                          <input name="bg_frequency_intensity" placeholder="Example: daily, intensity 7/10" />
+                        </div>
+                      </div>
+                      <div className="intake-row">
+                        <div>
+                          <label>Triggers</label>
+                          <input name="bg_triggers" placeholder="Sounds, strangers, separation, routines, etc." />
+                        </div>
+                        <div>
+                          <label>What helps / worsens?</label>
+                          <input name="bg_helps_worse" placeholder="Calming routines and stressors." />
+                        </div>
+                      </div>
+                      <div className="intake-field">
+                        <label>Daily routine + recent changes</label>
+                        <textarea name="bg_routine" placeholder="Wake, meals, walks, play, alone time, and recent changes."></textarea>
+                      </div>
+                      <div className="intake-field">
+                        <label>Vet notes for behavior context</label>
+                        <textarea name="bg_vet_notes" placeholder="Pain, allergies, hearing/vision changes, meds, or vet observations."></textarea>
+                      </div>
+
+                      <div className="intake-divider"></div>
+                      <h3>Past Life Opt-in (for bundle)</h3>
+                      <div className="intake-row">
+                        <div>
+                          <label>Include Past Life section?</label>
+                          <select name="pl_opt_in" defaultValue="no">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label>Depth level</label>
+                          <select name="pl_depth" defaultValue="light">
+                            <option value="light">Light</option>
+                            <option value="medium">Medium</option>
+                            <option value="deep">Deep</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="intake-row">
+                        <div>
+                          <label>Focus area</label>
+                          <select name="pl_focus" defaultValue="bond">
+                            <option value="bond">Bond</option>
+                            <option value="lessons">Lessons</option>
+                            <option value="purpose">Purpose</option>
+                            <option value="patterns">Patterns</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label>Paw photos provided?</label>
+                          <select name="pl_paw_photos" defaultValue="no">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="intake-field">
+                        <label>Past Life topics to avoid</label>
+                        <textarea name="pl_avoid" placeholder="Optional boundaries for this section."></textarea>
+                      </div>
+
+                      <div className="intake-divider"></div>
+                      <h3>Birth Chart details</h3>
+                      <div className="intake-row">
+                        <div>
+                          <label>Birth location</label>
+                          <input name="sc_location" placeholder="City, State, Country" />
+                        </div>
+                        <div>
+                          <label>Birth time</label>
+                          <input name="sc_time" placeholder="Exact, approximate, or unknown" />
+                        </div>
+                      </div>
+                      <div className="intake-field">
+                        <label>If unknown, add adoption date/location + early-life notes</label>
+                        <textarea name="bc_unknown_notes" placeholder="Include any timeline estimates you know."></textarea>
+                      </div>
                     </div>
                   ) : null}
 
@@ -907,16 +1387,30 @@ const Intake: React.FC = () => {
 
               <div className="intake-divider"></div>
 
-              <h2 className="intake-step-title">3) Pay &amp; submit</h2>
+              <h2 className="intake-step-title">3) Save intake &amp; pay</h2>
               <div className="intake-hint">
-                You will be redirected to PayPal to complete payment securely.
+                Save the intake first. Then complete payment using the PayPal button for the selected service.
               </div>
               <button className="cta wide" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Redirecting to PayPal...' : 'Submit & Pay with PayPal'}
+                {isSubmitting ? 'Saving intake...' : 'Save Intake'}
               </button>
               <div className="intake-fineprint">
                 By paying, you confirm the information submitted is accurate to the best of your knowledge.
               </div>
+              {intakeReadyForPayment && hostedButtonId ? (
+                <div className="intake-field">
+                  <h3>Complete Payment</h3>
+                  <div className="intake-hint">
+                    {savedReadingId ? `Intake saved (ID: ${savedReadingId}).` : 'Intake saved.'} Use the PayPal button below to complete checkout.
+                  </div>
+                  <div id={hostedContainerId}></div>
+                  {paypalHostedError ? (
+                    <div className="notice intake-summary-note">
+                      {paypalHostedError}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </form>
 
             <aside className="intake-card intake-summary">
