@@ -50,6 +50,25 @@ async function supabasePatchReading(readingId, updates) {
   }
 }
 
+async function getReading(readingId) {
+  if (!readingId || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  try {
+    const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/readings?id=eq.${encodeURIComponent(readingId)}&select=*`, {
+      method: 'GET',
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    const data = await response.json().catch(() => ([]));
+    if (!response.ok) return null;
+    return Array.isArray(data) && data.length ? data[0] : null;
+  } catch {
+    return null;
+  }
+}
+
 exports.handler = async function handler(event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed.' }) };
@@ -84,10 +103,18 @@ exports.handler = async function handler(event) {
     const purchaseUnit = data?.purchase_units?.[0] || {};
     const capture = purchaseUnit?.payments?.captures?.[0] || {};
     const readingId = purchaseUnit?.custom_id;
+    const reading = await getReading(readingId);
+    const existingNotes = String(reading?.notes || '').trim();
+    const paymentNote = `PayPal payment captured (${capture?.id || orderId})`;
+    const notes = existingNotes.includes(paymentNote)
+      ? existingNotes
+      : existingNotes
+        ? `${existingNotes}\n${paymentNote}`
+        : paymentNote;
 
     await supabasePatchReading(readingId, {
       status: 'in_progress',
-      notes: `PayPal payment captured (${capture?.id || orderId})`,
+      notes,
       updated_at: new Date().toISOString()
     });
 
