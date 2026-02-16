@@ -156,6 +156,9 @@ const AdminPawmarksManage: React.FC = () => {
                 <Link className="cta secondary" to="/admin">
                   Back to Admin
                 </Link>
+                <Link className="cta secondary" to="/admin/media">
+                  Media Library
+                </Link>
                 <Link className="cta secondary" to="/admin/pawmarks/new">
                   New Pawmark
                 </Link>

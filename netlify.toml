@@ -79,6 +79,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/admin/media-files"
+  to = "/.netlify/functions/admin-media-files"
+  status = 200
+
+[[redirects]]
   from = "/api/quick-quest"
   to = "/.netlify/functions/quick-quest"
   status = 200
@@ -86,6 +91,11 @@
 [[redirects]]
   from = "/api/intake-submit"
   to = "/.netlify/functions/intake-submit"
+  status = 200
+
+[[redirects]]
+  from = "/api/intake-upload-photo"
+  to = "/.netlify/functions/intake-upload-photo"
   status = 200
 
 [[redirects]]

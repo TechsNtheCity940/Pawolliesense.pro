@@ -22,6 +22,7 @@ import PhotoBooth from "./pages/PhotoBooth";
 import Intake from "./pages/Intake";
 import ThankYou from "./pages/ThankYou";
 import Admin from "./pages/Admin";
+import AdminMedia from "./pages/AdminMedia";
 import AdminPawmarksNew from "./pages/AdminPawmarksNew";
 import AdminPawmarksManage from "./pages/AdminPawmarksManage";
 import AdminWagBook from "./pages/AdminWagBook";
@@ -55,6 +56,7 @@ const App = () => (
             <Route path="/intake" element={<Intake />} />
             <Route path="/thank-you" element={<ThankYou />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/media" element={<AdminMedia />} />
             <Route path="/admin/pawmarks/new" element={<AdminPawmarksNew />} />
             <Route path="/admin/pawmarks/manage" element={<AdminPawmarksManage />} />
             <Route path="/admin/wagbook" element={<AdminWagBook />} />

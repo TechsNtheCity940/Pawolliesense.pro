@@ -111,10 +111,16 @@ const AdminPawmarksNew: React.FC = () => {
                 <div className="pill">Admin only</div>
                 <h1 className="section-title">Create a Pawmark</h1>
                 <p className="section-lede">Add a memorial profile and optionally a first tribute post.</p>
+                <p className="font-body text-sm text-[#3A3A3A]/70">Need image URLs? Open the Media Library in Admin to copy uploaded photo links.</p>
               </div>
-              <Link className="cta secondary" to="/pawmarks">
-                Back to Pawmarks
-              </Link>
+              <div className="hero-actions">
+                <Link className="cta secondary" to="/admin/media">
+                  Media Library
+                </Link>
+                <Link className="cta secondary" to="/pawmarks">
+                  Back to Pawmarks
+                </Link>
+              </div>
             </div>
 
             <form className="pawmarks-admin-form" onSubmit={handleSubmit}>

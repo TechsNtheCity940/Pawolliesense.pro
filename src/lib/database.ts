@@ -325,13 +325,19 @@ export async function uploadPetPhoto(
 }
 
 export async function getFilesByPet(petId: string): Promise<{ data: UploadedFile[] | null; error: Error | null }> {
-  const { data, error } = await supabase
-    .from('uploaded_files')
-    .select('*')
-    .eq('pet_id', petId)
-    .order('created_at', { ascending: false });
-
-  return { data, error: error as Error | null };
+  try {
+    const response = await fetch(`/api/admin/media-files?petId=${encodeURIComponent(petId)}&limit=200`, {
+      method: 'GET',
+      credentials: 'include'
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to fetch files by pet.');
+    }
+    return { data: result?.data ?? [], error: null };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
 }
 
 // Contact message functions

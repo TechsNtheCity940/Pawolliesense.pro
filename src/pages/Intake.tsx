@@ -425,6 +425,42 @@ const Intake: React.FC = () => {
     return result;
   };
 
+  const getSelectedPhotoFiles = (form: HTMLFormElement) => {
+    const data = new FormData(form);
+    return data
+      .getAll('photos')
+      .filter((item): item is File => item instanceof File && item.size > 0);
+  };
+
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error(`Unable to read ${file.name}.`));
+      reader.readAsDataURL(file);
+    });
+
+  const uploadIntakePhotos = async (readingId: string, files: File[]) => {
+    for (const file of files) {
+      const base64 = await fileToBase64(file);
+      const response = await fetch('/api/intake-upload-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          readingId,
+          fileName: file.name,
+          fileType: file.type,
+          photoType: 'intake_photo',
+          base64
+        })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || `Failed to upload ${file.name}.`);
+      }
+    }
+  };
+
   const createPayPalCheckout = async (serviceKey: string, readingId?: string, email?: string) => {
     const response = await fetch('/api/checkout', {
       method: 'POST',
@@ -457,6 +493,7 @@ const Intake: React.FC = () => {
 
     const data = new FormData(form);
     const email = String(data.get('email') || '').trim();
+    const photoFiles = getSelectedPhotoFiles(form);
 
     try {
       setIsSubmitting(true);
@@ -467,6 +504,13 @@ const Intake: React.FC = () => {
       const intakeResult = await submitIntakeToSupabase(form);
       const readingId = String(intakeResult?.readingId || '').trim();
       setSavedReadingId(readingId);
+      if (photoFiles.length) {
+        if (!readingId) {
+          throw new Error('Unable to link uploaded photos to this order.');
+        }
+        setSubmitStatus({ state: 'submitting', message: `Uploading ${photoFiles.length} photo(s)...` });
+        await uploadIntakePhotos(readingId, photoFiles);
+      }
 
       if (hostedButtonId) {
         setIntakeReadyForPayment(true);
