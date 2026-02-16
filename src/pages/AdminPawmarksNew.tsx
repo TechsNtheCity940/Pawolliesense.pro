@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SiteLayout from '@/components/site/SiteLayout';
-import { addProfile, type PawmarkProfile, type TitleStyle } from '@/lib/pawmarksStore';
+import { addProfile, type PawmarkProfile, type TitleStyle } from '@/lib/pawmarksApi';
 import AdminLoginCard from '@/components/admin/AdminLoginCard';
 import { useAdminSession } from '@/hooks/useAdminSession';
 
@@ -21,6 +21,8 @@ const makePostId = () => Math.random().toString(36).slice(2) + Date.now().toStri
 const AdminPawmarksNew: React.FC = () => {
   const { status, error, busy, login } = useAdminSession();
   const navigate = useNavigate();
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [statusNote, setStatusNote] = React.useState('');
 
   if (status !== 'authed') {
     return (
@@ -34,7 +36,7 @@ const AdminPawmarksNew: React.FC = () => {
     );
   }
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -72,21 +74,31 @@ const AdminPawmarksNew: React.FC = () => {
       });
     }
 
-    const profile = addProfile({
-      id: idInput || makeId(petName),
-      petName,
-      ownerName,
-      titleStyle,
-      heroImage,
-      tagline: tagline || undefined,
-      dates: dates || undefined,
-      species: species || undefined,
-      bio: bio || undefined,
-      posts
-    });
-
-    form.reset();
-    navigate(`/pawmarks/${profile.id}`);
+    try {
+      setIsSaving(true);
+      setStatusNote('');
+      const profile = await addProfile({
+        id: idInput || makeId(petName),
+        petName,
+        ownerName,
+        titleStyle,
+        heroImage,
+        tagline: tagline || undefined,
+        dates: dates || undefined,
+        species: species || undefined,
+        bio: bio || undefined,
+        posts
+      });
+      if (!profile?.id) {
+        throw new Error('Profile was not saved.');
+      }
+      form.reset();
+      navigate(`/pawmarks/${profile.id}`);
+    } catch (submitError: any) {
+      setStatusNote(submitError?.message || 'Unable to save Pawmark.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -184,8 +196,10 @@ const AdminPawmarksNew: React.FC = () => {
                 <input name="post_images" placeholder="/assets/photo1.png, /assets/photo2.png" />
               </label>
 
-              <button className="cta" type="submit">
-                Save Pawmark
+              {statusNote ? <p className="font-body text-sm text-[#9b3333]">{statusNote}</p> : null}
+
+              <button className="cta" type="submit" disabled={isSaving}>
+                {isSaving ? 'Saving...' : 'Save Pawmark'}
               </button>
             </form>
           </div>

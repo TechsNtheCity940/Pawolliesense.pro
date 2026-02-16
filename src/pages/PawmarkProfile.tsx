@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import SiteLayout from '@/components/site/SiteLayout';
-import { getProfile, seedIfEmpty, toYouTubeEmbed, type PawmarkProfile } from '@/lib/pawmarksStore';
+import { getProfile, toYouTubeEmbed, type PawmarkProfile } from '@/lib/pawmarksApi';
 
 const titleClassMap: Record<PawmarkProfile['titleStyle'], string> = {
   serif: 'pawmarks-title--serif',
@@ -16,17 +16,48 @@ const formatDate = (timestamp: number) =>
 const PawmarkProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [profile, setProfile] = useState<PawmarkProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    seedIfEmpty();
-    if (!id) return;
-    setProfile(getProfile(id));
+    const load = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        setLoadError('');
+        const nextProfile = await getProfile(id);
+        setProfile(nextProfile);
+      } catch (error: any) {
+        setLoadError(error?.message || 'Unable to load this Pawmark.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load().catch(() => {});
   }, [id]);
 
   const posts = useMemo(() => {
     if (!profile) return [];
     return [...profile.posts].sort((a, b) => b.createdAt - a.createdAt);
   }, [profile]);
+
+  if (loading) {
+    return (
+      <SiteLayout footerLinks={[{ label: 'Pawmarks', to: '/pawmarks' }]}>
+        <section className="section">
+          <div className="container">
+            <div className="card">
+              <h2 className="section-title">Loading Pawmark</h2>
+              <p className="section-lede">Please wait while this memorial profile loads.</p>
+            </div>
+          </div>
+        </section>
+      </SiteLayout>
+    );
+  }
 
   if (!profile) {
     return (
@@ -35,7 +66,9 @@ const PawmarkProfile: React.FC = () => {
           <div className="container">
             <div className="card">
               <h2 className="section-title">Pawmark not found</h2>
-              <p className="section-lede">We could not locate that memorial profile.</p>
+              <p className="section-lede">
+                {loadError || 'We could not locate that memorial profile.'}
+              </p>
               <Link className="cta secondary" to="/pawmarks">
                 Back to Pawmarks
               </Link>

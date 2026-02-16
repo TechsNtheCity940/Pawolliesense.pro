@@ -24,6 +24,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/pawmarks"
+  to = "/.netlify/functions/pawmarks"
+  status = 200
+
+[[redirects]]
   from = "/api/admin/login"
   to = "/.netlify/functions/admin-login"
   status = 200
@@ -66,6 +71,11 @@
 [[redirects]]
   from = "/api/admin/quick-quest-fulfill"
   to = "/.netlify/functions/admin-quick-quest-fulfill"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/pawmarks/save"
+  to = "/.netlify/functions/admin-pawmarks-save"
   status = 200
 
 [[redirects]]

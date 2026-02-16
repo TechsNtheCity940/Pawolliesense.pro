@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SiteLayout from '@/components/site/SiteLayout';
-import { listProfiles, seedIfEmpty, type PawmarkProfile } from '@/lib/pawmarksStore';
+import { listProfiles, type PawmarkProfile } from '@/lib/pawmarksApi';
 
 const PAGE_SIZE = 9;
 const ROTATE_MS = 8000;
@@ -25,11 +25,23 @@ const shuffleProfiles = (items: PawmarkProfile[]) => {
 const Pawmarks: React.FC = () => {
   const [profiles, setProfiles] = useState<PawmarkProfile[]>([]);
   const [pageIndex, setPageIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    seedIfEmpty();
-    const nextProfiles = listProfiles();
-    setProfiles(shuffleProfiles(nextProfiles));
+    const load = async () => {
+      try {
+        setLoading(true);
+        setLoadError('');
+        const nextProfiles = await listProfiles();
+        setProfiles(shuffleProfiles(nextProfiles));
+      } catch (error: any) {
+        setLoadError(error?.message || 'Unable to load Pawmarks.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load().catch(() => {});
   }, []);
 
   const totalProfiles = profiles.length;
@@ -89,7 +101,17 @@ const Pawmarks: React.FC = () => {
 
       <section className="section">
         <div className="container">
-          {profiles.length ? (
+          {loading ? (
+            <div className="card">
+              <h2 className="section-title">Loading Pawmarks</h2>
+              <p className="section-lede">Please wait while memorial profiles load.</p>
+            </div>
+          ) : loadError ? (
+            <div className="card">
+              <h2 className="section-title">Unable to load Pawmarks</h2>
+              <p className="section-lede">{loadError}</p>
+            </div>
+          ) : profiles.length ? (
             <div className="pawmarks-menu-grid">
               {gridProfiles.map((profile, index) =>
                 profile ? (
