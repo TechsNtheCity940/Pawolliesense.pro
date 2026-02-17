@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SiteLayout from '@/components/site/SiteLayout';
 import AdminLoginCard from '@/components/admin/AdminLoginCard';
+import AdminMediaPickerModal from '@/components/admin/AdminMediaPickerModal';
 import { useAdminSession } from '@/hooks/useAdminSession';
 import {
   type PawmarkProfile,
@@ -26,6 +27,7 @@ const AdminPawmarksManage: React.FC = () => {
   const [statusNote, setStatusNote] = useState('');
   const [loadingProfiles, setLoadingProfiles] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const sortedProfiles = useMemo(
     () => [...profiles].sort((a, b) => a.petName.localeCompare(b.petName)),
@@ -143,6 +145,41 @@ const AdminPawmarksManage: React.FC = () => {
 
   return (
     <SiteLayout footerLinks={[{ label: 'Pawmarks', to: '/pawmarks' }]}>
+      <AdminMediaPickerModal
+        isOpen={pickerOpen}
+        initialHeroUrl={draft?.heroImage || ''}
+        initialGalleryUrls={draft?.posts?.[0]?.images || []}
+        onClose={() => setPickerOpen(false)}
+        onApply={({ heroUrl, galleryUrls }) => {
+          setDraft((prev) => {
+            if (!prev) return prev;
+            const nextPosts = [...(prev.posts || [])];
+            if (galleryUrls.length) {
+              if (!nextPosts.length) {
+                nextPosts.push({
+                  id: makeId(),
+                  createdAt: Date.now(),
+                  title: 'Memories',
+                  body: '',
+                  images: galleryUrls,
+                  youtubeUrl: ''
+                });
+              } else {
+                nextPosts[0] = {
+                  ...nextPosts[0],
+                  images: galleryUrls
+                };
+              }
+            }
+            return {
+              ...prev,
+              heroImage: heroUrl || prev.heroImage,
+              posts: nextPosts
+            };
+          });
+          setPickerOpen(false);
+        }}
+      />
       <section className="section">
         <div className="container">
           <div className="card pawmarks-admin-card">
@@ -233,6 +270,16 @@ const AdminPawmarksManage: React.FC = () => {
                           required
                         />
                       </label>
+                      <div className="field">
+                        <span className="label">Media picker</span>
+                        <button
+                          type="button"
+                          className="cta secondary"
+                          onClick={() => setPickerOpen(true)}
+                        >
+                          Select Hero + Gallery
+                        </button>
+                      </div>
                       <label className="field">
                         <span className="label">Title style</span>
                         <select

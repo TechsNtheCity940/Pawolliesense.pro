@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import SiteLayout from '@/components/site/SiteLayout';
 import { addProfile, type PawmarkProfile, type TitleStyle } from '@/lib/pawmarksApi';
 import AdminLoginCard from '@/components/admin/AdminLoginCard';
+import AdminMediaPickerModal from '@/components/admin/AdminMediaPickerModal';
 import { useAdminSession } from '@/hooks/useAdminSession';
 
 const slugify = (value: string) =>
@@ -23,6 +24,9 @@ const AdminPawmarksNew: React.FC = () => {
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = React.useState(false);
   const [statusNote, setStatusNote] = React.useState('');
+  const [heroImageInput, setHeroImageInput] = React.useState('');
+  const [postImagesInput, setPostImagesInput] = React.useState('');
+  const [pickerOpen, setPickerOpen] = React.useState(false);
 
   if (status !== 'authed') {
     return (
@@ -43,7 +47,7 @@ const AdminPawmarksNew: React.FC = () => {
 
     const petName = String(data.get('pet_name') || '').trim();
     const ownerName = String(data.get('owner_name') || '').trim();
-    const heroImage = String(data.get('hero_image') || '').trim();
+    const heroImage = heroImageInput || String(data.get('hero_image') || '').trim();
 
     if (!petName || !ownerName || !heroImage) return;
 
@@ -56,7 +60,7 @@ const AdminPawmarksNew: React.FC = () => {
 
     const postTitle = String(data.get('post_title') || '').trim();
     const postBody = String(data.get('post_body') || '').trim();
-    const postImages = String(data.get('post_images') || '')
+    const postImages = (postImagesInput || String(data.get('post_images') || ''))
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
@@ -93,6 +97,8 @@ const AdminPawmarksNew: React.FC = () => {
         throw new Error('Profile was not saved.');
       }
       form.reset();
+      setHeroImageInput('');
+      setPostImagesInput('');
       navigate(`/pawmarks/${profile.id}`);
     } catch (submitError: any) {
       setStatusNote(submitError?.message || 'Unable to save Pawmark.');
@@ -103,6 +109,17 @@ const AdminPawmarksNew: React.FC = () => {
 
   return (
     <SiteLayout footerLinks={[{ label: 'Pawmarks', to: '/pawmarks' }]}>
+      <AdminMediaPickerModal
+        isOpen={pickerOpen}
+        initialHeroUrl={heroImageInput}
+        initialGalleryUrls={postImagesInput.split(',').map((item) => item.trim()).filter(Boolean)}
+        onClose={() => setPickerOpen(false)}
+        onApply={({ heroUrl, galleryUrls }) => {
+          if (heroUrl) setHeroImageInput(heroUrl);
+          setPostImagesInput(galleryUrls.join(', '));
+          setPickerOpen(false);
+        }}
+      />
       <section className="section">
         <div className="container">
           <div className="card pawmarks-admin-card">
@@ -138,7 +155,13 @@ const AdminPawmarksNew: React.FC = () => {
               <div className="pawmarks-admin-row">
                 <label className="field">
                   <span className="label">Hero image URL</span>
-                  <input name="hero_image" required placeholder="/assets/oli.png or https://..." />
+                  <input
+                    name="hero_image"
+                    required
+                    placeholder="/assets/oli.png or https://..."
+                    value={heroImageInput}
+                    onChange={(event) => setHeroImageInput(event.target.value)}
+                  />
                 </label>
                 <label className="field">
                   <span className="label">Title style</span>
@@ -149,6 +172,15 @@ const AdminPawmarksNew: React.FC = () => {
                     <option value="soft">Soft</option>
                   </select>
                 </label>
+              </div>
+              <div className="pawmarks-admin-row">
+                <button
+                  type="button"
+                  className="cta secondary"
+                  onClick={() => setPickerOpen(true)}
+                >
+                  Select Hero + Gallery Images
+                </button>
               </div>
 
               <div className="pawmarks-admin-row">
@@ -199,7 +231,12 @@ const AdminPawmarksNew: React.FC = () => {
 
               <label className="field">
                 <span className="label">Post images (comma separated URLs)</span>
-                <input name="post_images" placeholder="/assets/photo1.png, /assets/photo2.png" />
+                <input
+                  name="post_images"
+                  placeholder="/assets/photo1.png, /assets/photo2.png"
+                  value={postImagesInput}
+                  onChange={(event) => setPostImagesInput(event.target.value)}
+                />
               </label>
 
               {statusNote ? <p className="font-body text-sm text-[#9b3333]">{statusNote}</p> : null}
