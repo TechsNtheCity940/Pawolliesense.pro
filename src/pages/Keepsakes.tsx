@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import SiteLayout from '@/components/site/SiteLayout';
 
@@ -36,6 +36,8 @@ const keepsakeProducts = [
 ];
 
 const Keepsakes: React.FC = () => {
+  const [hoveredProduct, setHoveredProduct] = useState<string | null>(null);
+
   return (
     <SiteLayout
       footerLinks={[
@@ -77,9 +79,16 @@ const Keepsakes: React.FC = () => {
                   <h3 className="service-title">{product.title}</h3>
                   <p className="service-desc">{product.desc}</p>
                   <div className="hero-actions">
-                    <Link className="cta secondary" to="/intake">
-                      {product.cta}
-                    </Link>
+                    <button
+                      type="button"
+                      className="cta secondary"
+                      disabled
+                      onMouseEnter={() => setHoveredProduct(product.title)}
+                      onMouseLeave={() => setHoveredProduct((prev) => (prev === product.title ? null : prev))}
+                      style={{ opacity: 0.85, cursor: 'not-allowed' }}
+                    >
+                      {hoveredProduct === product.title ? 'Coming Soon' : product.cta}
+                    </button>
                   </div>
                 </div>
               ))}
