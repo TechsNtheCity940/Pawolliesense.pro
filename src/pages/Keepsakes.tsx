@@ -52,6 +52,7 @@ const Keepsakes: React.FC = () => {
           <div className="hero-card">
             <div className="pill">Keepsake Shop | Custom-made from your submission</div>
             <h1 className="hero-title">Keepsake Shop</h1>
+            <p className="section-lede" style={{ fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.4rem' }}>(COMING SOON)</p>
             <p className="section-lede">
               Turn your reading into something you can hold, frame, wear, or gift. Every keepsake is made from your photos and intake details—never generic art.
             </p>
