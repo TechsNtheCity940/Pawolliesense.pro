@@ -265,7 +265,7 @@ const Intake: React.FC = () => {
   const [selectedService, setSelectedService] = useState<string>('');
   const [quickTone, setQuickTone] = useState('calm');
   const [furmilyCount, setFurmilyCount] = useState(2);
-  const [keepsakes, setKeepsakes] = useState<string[]>([]);
+  const [keepsakes] = useState<string[]>([]);
   const [submitStatus, setSubmitStatus] = useState<{
     state: 'idle' | 'submitting' | 'success' | 'error';
     message?: string;
@@ -357,27 +357,10 @@ const Intake: React.FC = () => {
     };
   }, [hostedButtonId, hostedContainerId, intakeReadyForPayment]);
 
-  const toggleKeepsake = (key: string) => {
-    setKeepsakes((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]));
-  };
-
-  const handlePreview = () => {
+  const handlePlaceOrder = () => {
     const form = formRef.current;
     if (!form) return;
-    const data = new FormData(form);
-    const payload: Record<string, string | string[]> = {};
-    data.forEach((value, key) => {
-      const normalized = value instanceof File ? value.name : String(value);
-      const existing = payload[key];
-      if (!existing) {
-        payload[key] = normalized;
-      } else if (Array.isArray(existing)) {
-        payload[key] = [...existing, normalized];
-      } else {
-        payload[key] = [existing, normalized];
-      }
-    });
-    console.log('Pawollie intake preview', payload);
+    form.requestSubmit();
   };
 
   const buildIntakePayload = (form: HTMLFormElement) => {
@@ -1353,9 +1336,10 @@ const Intake: React.FC = () => {
                         <button
                           type="button"
                           className="intake-keepsake-btn"
-                          onClick={() => toggleKeepsake(item.key)}
+                          disabled
+                          aria-disabled="true"
                         >
-                          {keepsakes.includes(item.key) ? 'Selected' : item.cta}
+                          Coming Soon
                         </button>
                       </div>
                     ))}
@@ -1485,10 +1469,9 @@ const Intake: React.FC = () => {
                 </div>
               ) : null}
 
-              <button className="intake-preview-btn" type="button" onClick={handlePreview}>
-                Preview Submission (dev)
+              <button className="intake-preview-btn" type="button" onClick={handlePlaceOrder}>
+                Place Order
               </button>
-              <div className="intake-fineprint">Logs the structured payload in Console for backend testing.</div>
             </aside>
           </div>
         </div>
