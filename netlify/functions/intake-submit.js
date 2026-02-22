@@ -1,5 +1,6 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const { upsertResendContact } = require('./_resendContacts');
 
 const WAGBOOK_PRICE = 40;
 
@@ -289,10 +290,11 @@ exports.handler = async function handler(event) {
     const pet = await createPet({
       customer_id: customer.id,
       name: petName,
-      species: payload.species || payload.pet_species || null,
-      breed: payload.breed || payload.pet_breed || null,
+      species: payload.species || payload.pet_species || payload.pet_type || null,
+      breed: payload.breed || payload.pet_breed || payload.petBreed || null,
+      age: payload.age || payload.pet_age || payload.petAge || null,
       birth_date: payload.birth_date || null,
-      gender: payload.petGender || payload.pet_gender || null,
+      gender: payload.sex || payload.petGender || payload.pet_gender || null,
       is_fixed: payload.petFixed || payload.pet_fixed || null,
       is_memorial: payload.pm_status ? payload.pm_status !== 'Living' : false,
       personality_description: payload.personality_description || payload.pf_traits || null,
@@ -321,6 +323,21 @@ exports.handler = async function handler(event) {
       wagbook_cover_image: payload.wagbook_cover_image || null,
       wagbook_price: wagbookSelected ? WAGBOOK_PRICE : 0
     });
+
+    try {
+      await upsertResendContact({
+        email,
+        firstName: customer.first_name,
+        lastName: customer.last_name,
+        properties: {
+          last_order_id: reading.id,
+          last_pet_name: petName,
+          last_services: services.join(', ')
+        }
+      });
+    } catch (contactError) {
+      console.warn('Resend contact sync failed', contactError.message || contactError);
+    }
 
     return jsonResponse(200, { ok: true, readingId: reading.id, total_price: totalPrice });
   } catch (error) {

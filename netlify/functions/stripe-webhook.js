@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const { getResendApiKey } = require('./_resendContacts');
 
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
 
@@ -257,9 +258,10 @@ async function sendSmtpEmail({ to, subject, html, text }) {
 
 async function sendConfirmationEmail({ to, subject, html, text }) {
   const from = process.env.EMAIL_FROM;
-  if (process.env.RESEND_API_KEY) {
+  const resendApiKey = getResendApiKey();
+  if (resendApiKey) {
     return sendResendEmail({
-      apiKey: process.env.RESEND_API_KEY,
+      apiKey: resendApiKey,
       from: from || 'no-reply@pawolliesense.com',
       to,
       subject,
@@ -471,7 +473,7 @@ exports.handler = async function handler(event) {
       await sendConfirmationEmail({ to: email, subject, html, text });
     } catch (error) {
       console.error('Confirmation email failed', error.message);
-      if (process.env.RESEND_API_KEY || process.env.SENDGRID_API_KEY) {
+      if (getResendApiKey() || process.env.SENDGRID_API_KEY) {
         return { statusCode: 500, body: JSON.stringify({ error: 'Email send failed.' }) };
       }
     }

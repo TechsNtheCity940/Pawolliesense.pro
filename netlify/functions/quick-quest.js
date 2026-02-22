@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { upsertResendContact, getResendApiKey } = require('./_resendContacts');
 
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
 
@@ -213,9 +214,10 @@ const sendSmtpEmail = async ({ to, subject, html, text }) => {
 
 const sendEmail = async ({ to, subject, html, text }) => {
   const from = process.env.EMAIL_FROM;
-  if (process.env.RESEND_API_KEY) {
+  const resendApiKey = getResendApiKey();
+  if (resendApiKey) {
     await sendResendEmail({
-      apiKey: process.env.RESEND_API_KEY,
+      apiKey: resendApiKey,
       from: from || 'no-reply@pawolliesense.com',
       to,
       subject,
@@ -304,11 +306,27 @@ exports.handler = async (event) => {
       throw new Error('Unable to create customer record.');
     }
 
+    try {
+      await upsertResendContact({
+        email,
+        firstName: customer.first_name,
+        lastName: customer.last_name,
+        properties: {
+          quick_quest_opt_in: 'true',
+          last_pet_name: petName
+        }
+      });
+    } catch (contactError) {
+      console.warn('Resend contact sync failed', contactError.message || contactError);
+    }
+
     const petPayload = {
       customer_id: customer.id,
       name: petName,
-      species: payload.species || null,
-      breed: payload.breed || null,
+      species: payload.species || payload.pet_species || null,
+      breed: payload.breed || payload.pet_breed || null,
+      age: payload.age || payload.pet_age || null,
+      gender: payload.sex || payload.pet_gender || null,
       birth_date: payload.birth_date || null,
       additional_notes: buildQuickQuestNotes({
         service,

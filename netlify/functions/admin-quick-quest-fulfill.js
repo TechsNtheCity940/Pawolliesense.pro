@@ -4,6 +4,7 @@ const {
   verifyToken,
   getCredentials
 } = require('./_adminAuth');
+const { getResendApiKey } = require('./_resendContacts');
 
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
 
@@ -209,9 +210,10 @@ const sendSmtpEmail = async ({ to, subject, html, text }) => {
 
 const sendEmail = async ({ to, subject, html, text }) => {
   const from = process.env.EMAIL_FROM;
-  if (process.env.RESEND_API_KEY) {
+  const resendApiKey = getResendApiKey();
+  if (resendApiKey) {
     await sendResendEmail({
-      apiKey: process.env.RESEND_API_KEY,
+      apiKey: resendApiKey,
       from: from || 'no-reply@pawolliesense.com',
       to,
       subject,

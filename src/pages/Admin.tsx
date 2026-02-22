@@ -4,7 +4,9 @@ import {
   getContactMessages, 
   updateReadingStatus,
   updateContactMessageStatus,
-  updateReadingNotes
+  updateReadingNotes,
+  sendReadingResponseEmail,
+  sendAllReadingResponseEmails
 } from '@/lib/database';
 import { pawollieLogoUrl } from '@/lib/brand-assets';
 import AdminLoginCard from '@/components/admin/AdminLoginCard';
@@ -24,6 +26,10 @@ const Admin: React.FC = () => {
   const [generatingReadings, setGeneratingReadings] = useState<Record<string, boolean>>({});
   const [generatingResponses, setGeneratingResponses] = useState<Record<string, boolean>>({});
   const [repromptDrafts, setRepromptDrafts] = useState<Record<string, string>>({});
+  const [sendingEmails, setSendingEmails] = useState<Record<string, boolean>>({});
+  const [emailErrors, setEmailErrors] = useState<Record<string, string>>({});
+  const [sendingAllEmails, setSendingAllEmails] = useState(false);
+  const [bulkEmailResult, setBulkEmailResult] = useState<string>('');
 
   useEffect(() => {
     if (status === 'authed') {
@@ -35,6 +41,9 @@ const Admin: React.FC = () => {
       setExpandedOrderId(null);
       setResponseDrafts({});
       setSavingResponses({});
+      setSendingEmails({});
+      setEmailErrors({});
+      setBulkEmailResult('');
       setLoading(false);
     }
   }, [status]);
@@ -116,12 +125,81 @@ const Admin: React.FC = () => {
     setSavingResponses((prev) => ({ ...prev, [readingId]: true }));
     try {
       const notes = responseDrafts[readingId] ?? '';
-      await updateReadingNotes(readingId, notes);
-      loadData();
+      const saved = await updateReadingNotes(readingId, notes);
+      if (saved.error) {
+        throw saved.error;
+      }
+
+      setSendingEmails((prev) => ({ ...prev, [readingId]: true }));
+      const emailResult = await sendReadingResponseEmail(readingId, true);
+      if (emailResult.error) {
+        setEmailErrors((prev) => ({
+          ...prev,
+          [readingId]: emailResult.error?.message || 'Response was saved, but email delivery failed.'
+        }));
+      } else {
+        setEmailErrors((prev) => {
+          const next = { ...prev };
+          delete next[readingId];
+          return next;
+        });
+      }
+
+      await loadData();
     } catch (error) {
       console.error('Error saving response:', error);
+      setEmailErrors((prev) => ({
+        ...prev,
+        [readingId]: error instanceof Error ? error.message : 'Unable to save response.'
+      }));
     } finally {
       setSavingResponses((prev) => ({ ...prev, [readingId]: false }));
+      setSendingEmails((prev) => ({ ...prev, [readingId]: false }));
+    }
+  };
+
+  const handleSendResponseEmail = async (readingId: string, force = false) => {
+    if (!readingId) return;
+    setSendingEmails((prev) => ({ ...prev, [readingId]: true }));
+    try {
+      const result = await sendReadingResponseEmail(readingId, force);
+      if (result.error) {
+        throw result.error;
+      }
+      setEmailErrors((prev) => {
+        const next = { ...prev };
+        delete next[readingId];
+        return next;
+      });
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to send response email.';
+      setEmailErrors((prev) => ({ ...prev, [readingId]: message }));
+      console.error('Error sending response email:', error);
+    } finally {
+      setSendingEmails((prev) => ({ ...prev, [readingId]: false }));
+    }
+  };
+
+  const handleSendAllResponses = async () => {
+    setSendingAllEmails(true);
+    setBulkEmailResult('');
+    try {
+      const result = await sendAllReadingResponseEmails(250);
+      if (result.error) {
+        throw result.error;
+      }
+      const sentCount = Number(result.data?.sent_count || 0);
+      const failedCount = Number(result.data?.failed_count || 0);
+      const skippedCount = Number(result.data?.skipped_count || 0);
+      setBulkEmailResult(`Sent ${sentCount}. Failed ${failedCount}. Skipped ${skippedCount}.`);
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to send all responses.';
+      setBulkEmailResult(message);
+      console.error('Error sending all responses:', error);
+    } finally {
+      setSendingAllEmails(false);
     }
   };
 
@@ -155,6 +233,39 @@ const Admin: React.FC = () => {
   const formatCurrency = (value: number) => (
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
   );
+
+  const parseAdditionalNotes = (raw: any) => {
+    if (!raw) return {};
+    if (typeof raw === 'object') return raw;
+    try {
+      const parsed = JSON.parse(raw);
+      return typeof parsed === 'object' && parsed ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const getPetField = (reading: any, field: 'species' | 'breed' | 'age' | 'gender') => {
+    const pet = reading?.pets || {};
+    const extra = parseAdditionalNotes(pet.additional_notes);
+    const value = {
+      species: pet.species || extra.species || extra.pet_species || '',
+      breed: pet.breed || extra.breed || extra.pet_breed || '',
+      age: pet.age || extra.age || extra.pet_age || '',
+      gender: pet.gender || extra.sex || extra.gender || extra.pet_gender || ''
+    }[field];
+    return String(value || '').trim() || 'N/A';
+  };
+
+  const getEmailDeliveryText = (reading: any) => {
+    if (reading?.response_email_sent_at) {
+      return `Email sent: ${formatDate(reading.response_email_sent_at)}`;
+    }
+    if (reading?.response_email_last_error) {
+      return `Email failed: ${reading.response_email_last_error}`;
+    }
+    return 'Email not sent yet';
+  };
 
   const normalizeServiceKey = (service: string) => service.trim().toLowerCase();
 
@@ -316,6 +427,11 @@ const Admin: React.FC = () => {
 
   const completedOrders = useMemo(
     () => readings.filter((reading) => reading.status === 'completed'),
+    [readings]
+  );
+
+  const unsentResponseCount = useMemo(
+    () => readings.filter((reading) => String(reading?.notes || '').trim() && !reading?.response_email_sent_at).length,
     [readings]
   );
 
@@ -567,6 +683,22 @@ const Admin: React.FC = () => {
               {/* Orders Tab */}
               {activeTab === 'orders' && (
                 <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#9DB5A5]/20 bg-[#F5F1E8] p-4">
+                    <p className="font-body text-sm text-[#3A3A3A]">
+                      <strong>Unsent responses:</strong> {unsentResponseCount}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleSendAllResponses}
+                      disabled={sendingAllEmails || unsentResponseCount === 0}
+                      className="px-4 py-2 bg-[#2D3561] text-white font-display text-sm font-semibold rounded-lg hover:bg-[#3D4A7A] transition-colors disabled:opacity-60"
+                    >
+                      {sendingAllEmails ? 'Sending...' : 'Send All Responses'}
+                    </button>
+                  </div>
+                  {bulkEmailResult ? (
+                    <p className="font-body text-xs text-[#3A3A3A]/80">{bulkEmailResult}</p>
+                  ) : null}
                   {readings.length === 0 ? (
                     <p className="text-center font-body text-[#3A3A3A]/70 py-8">No orders yet.</p>
                   ) : (
@@ -579,6 +711,8 @@ const Admin: React.FC = () => {
                         ? formatDate(reading.completed_at)
                         : 'Not completed';
                       const wagBookEligible = hasWagBook(reading);
+                      const isSendingEmail = Boolean(sendingEmails[orderId]);
+                      const emailError = emailErrors[orderId] || '';
 
                       return (
                         <div
@@ -609,6 +743,9 @@ const Admin: React.FC = () => {
                               </p>
                               <p className="font-body text-sm text-[#3A3A3A]/70">
                                 Completed: {completedLabel}
+                              </p>
+                              <p className="font-body text-sm text-[#3A3A3A]/70">
+                                {getEmailDeliveryText(reading)}
                               </p>
                             </div>
                             <div className="flex flex-col items-end gap-2">
@@ -652,6 +789,13 @@ const Admin: React.FC = () => {
                                   <p><strong>Ordered:</strong> {formatDate(reading.created_at)}</p>
                                   <p><strong>Completed:</strong> {completedLabel}</p>
                                   <p><strong>Services:</strong> {getServiceNames(reading.services || [])}</p>
+                                  <p><strong>Email delivery:</strong> {getEmailDeliveryText(reading)}</p>
+                                  {reading?.response_email_provider ? (
+                                    <p><strong>Email provider:</strong> {reading.response_email_provider}</p>
+                                  ) : null}
+                                  {reading?.response_email_sent_to ? (
+                                    <p><strong>Delivered to:</strong> {reading.response_email_sent_to}</p>
+                                  ) : null}
                                 </div>
                                 {wagBookEligible ? (
                                   <a
@@ -703,10 +847,10 @@ const Admin: React.FC = () => {
                               <div>
                                 <h4 className="font-display font-semibold text-[#2D3561] mb-2">Pet Details</h4>
                                 <div className="font-body text-sm text-[#3A3A3A] space-y-1">
-                                  <p><strong>Species:</strong> {reading.pets?.species}</p>
-                                  <p><strong>Breed:</strong> {reading.pets?.breed || 'N/A'}</p>
-                                  <p><strong>Age:</strong> {reading.pets?.age || 'N/A'}</p>
-                                  <p><strong>Gender:</strong> {reading.pets?.gender || 'N/A'}</p>
+                                  <p><strong>Species:</strong> {getPetField(reading, 'species')}</p>
+                                  <p><strong>Breed:</strong> {getPetField(reading, 'breed')}</p>
+                                  <p><strong>Age:</strong> {getPetField(reading, 'age')}</p>
+                                  <p><strong>Gender:</strong> {getPetField(reading, 'gender')}</p>
                                   {reading.pets?.is_memorial && (
                                     <p className="text-red-600"><strong>Memorial Request</strong></p>
                                   )}
@@ -767,12 +911,25 @@ const Admin: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => handleSaveResponse(String(reading?.id ?? ''))}
-                                    disabled={Boolean(savingResponses[String(reading?.id ?? '')])}
+                                    disabled={Boolean(savingResponses[String(reading?.id ?? '')]) || isSendingEmail}
                                     className="px-4 py-2 bg-[#2D3561] text-white font-display text-sm font-semibold rounded-lg hover:bg-[#3D4A7A] transition-colors disabled:opacity-70"
                                   >
-                                    {savingResponses[String(reading?.id ?? '')] ? 'Saving...' : 'Save Response'}
+                                    {savingResponses[String(reading?.id ?? '')] ? 'Saving...' : 'Save + Send'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendResponseEmail(orderId, true)}
+                                    disabled={isSendingEmail}
+                                    className="px-4 py-2 border border-[#2D3561]/40 text-[#2D3561] font-display text-sm font-semibold rounded-lg hover:bg-[#2D3561]/10 transition-colors disabled:opacity-70"
+                                  >
+                                    {isSendingEmail
+                                      ? 'Sending...'
+                                      : (reading?.response_email_sent_at ? 'Resend Email' : 'Send Email')}
                                   </button>
                                 </div>
+                                {emailError ? (
+                                  <p className="mt-2 font-body text-xs text-red-600">{emailError}</p>
+                                ) : null}
                               </div>
                             </div>
                           )}
@@ -800,6 +957,8 @@ const Admin: React.FC = () => {
                       const responseValue = responseDrafts[orderId] ?? reading?.notes ?? '';
                       const isSaving = savingResponses[orderId];
                       const isGenerating = generatingResponses[orderId];
+                      const isSendingEmail = Boolean(sendingEmails[orderId]);
+                      const emailError = emailErrors[orderId] || '';
                       const repromptValue = repromptDrafts[orderId] ?? '';
 
                       return (
@@ -831,6 +990,9 @@ const Admin: React.FC = () => {
                               </p>
                               <p className="font-body text-sm text-[#3A3A3A]/70">
                                 Completed: {reading?.completed_at ? formatDate(reading.completed_at) : 'Not completed'}
+                              </p>
+                              <p className="font-body text-sm text-[#3A3A3A]/70">
+                                {getEmailDeliveryText(reading)}
                               </p>
                             </div>
                             <div className="flex flex-col items-end gap-2">
@@ -886,12 +1048,25 @@ const Admin: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => handleSaveResponse(orderId)}
-                                disabled={Boolean(isSaving)}
+                                disabled={Boolean(isSaving) || isSendingEmail}
                                 className="px-4 py-2 bg-[#2D3561] text-white font-display text-sm font-semibold rounded-lg hover:bg-[#3D4A7A] transition-colors disabled:opacity-70"
                               >
-                                {isSaving ? 'Saving...' : 'Save Response'}
+                                {isSaving ? 'Saving...' : 'Save + Send'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSendResponseEmail(orderId, true)}
+                                disabled={isSendingEmail}
+                                className="px-4 py-2 border border-[#2D3561]/40 text-[#2D3561] font-display text-sm font-semibold rounded-lg hover:bg-[#2D3561]/10 transition-colors disabled:opacity-70"
+                              >
+                                {isSendingEmail
+                                  ? 'Sending...'
+                                  : (reading?.response_email_sent_at ? 'Resend Email' : 'Send Email')}
                               </button>
                             </div>
+                            {emailError ? (
+                              <p className="mt-2 font-body text-xs text-red-600">{emailError}</p>
+                            ) : null}
                           </div>
                         </div>
                       );

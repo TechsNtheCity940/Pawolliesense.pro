@@ -64,6 +64,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/admin/reading/send"
+  to = "/.netlify/functions/admin-reading-send"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/reading/send-all"
+  to = "/.netlify/functions/admin-reading-send-all"
+  status = 200
+
+[[redirects]]
   from = "/api/admin/generate-email"
   to = "/.netlify/functions/admin-generate-email"
   status = 200
@@ -81,6 +91,11 @@
 [[redirects]]
   from = "/api/admin/media-files"
   to = "/.netlify/functions/admin-media-files"
+  status = 200
+
+[[redirects]]
+  from = "/api/resend/webhook"
+  to = "/.netlify/functions/resend-webhook"
   status = 200
 
 [[redirects]]

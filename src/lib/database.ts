@@ -54,6 +54,11 @@ export interface Reading {
   wagbook_reference_images?: string[];
   wagbook_cover_image?: string;
   wagbook_price?: number;
+  response_email_sent_at?: string | null;
+  response_email_sent_to?: string | null;
+  response_email_id?: string | null;
+  response_email_provider?: string | null;
+  response_email_last_error?: string | null;
 }
 
 export interface UploadedFile {
@@ -274,6 +279,47 @@ export async function updateReadingNotes(
       throw new Error(result?.error || 'Unable to update reading notes.');
     }
     return { data: result?.data ?? null, error: null };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function sendReadingResponseEmail(
+  readingId: string,
+  force = false
+): Promise<{ data: any | null; error: Error | null }> {
+  try {
+    const response = await fetch('/api/admin/reading/send', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ readingId, force })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to send response email.');
+    }
+    return { data: result ?? null, error: null };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function sendAllReadingResponseEmails(
+  limit = 100
+): Promise<{ data: any | null; error: Error | null }> {
+  try {
+    const response = await fetch('/api/admin/reading/send-all', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ limit })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to send all response emails.');
+    }
+    return { data: result ?? null, error: null };
   } catch (error: any) {
     return { data: null, error: error as Error };
   }
