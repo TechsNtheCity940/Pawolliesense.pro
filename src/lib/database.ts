@@ -406,6 +406,25 @@ export async function getContactMessages(): Promise<{ data: ContactMessage[] | n
   return { data, error: error as Error | null };
 }
 
+export async function getResendEmailEvents(
+  limit = 200
+): Promise<{ data: any[] | null; error: Error | null; warning?: string }> {
+  try {
+    const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
+    const response = await fetch(`/api/admin/email-events?limit=${safeLimit}`, {
+      method: 'GET',
+      credentials: 'include'
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to fetch email events.');
+    }
+    return { data: result?.data ?? [], error: null, warning: result?.warning || '' };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
+}
+
 export async function updateContactMessageStatus(
   messageId: string,
   status: ContactMessage['status']

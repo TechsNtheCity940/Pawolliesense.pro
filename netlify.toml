@@ -94,6 +94,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/admin/email-events"
+  to = "/.netlify/functions/admin-email-events"
+  status = 200
+
+[[redirects]]
   from = "/api/resend/webhook"
   to = "/.netlify/functions/resend-webhook"
   status = 200

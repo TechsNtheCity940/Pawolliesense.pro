@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   getReadings, 
   getContactMessages, 
+  getResendEmailEvents,
   updateReadingStatus,
   updateContactMessageStatus,
   updateReadingNotes,
@@ -12,13 +13,15 @@ import { pawollieLogoUrl } from '@/lib/brand-assets';
 import AdminLoginCard from '@/components/admin/AdminLoginCard';
 import { useAdminSession } from '@/hooks/useAdminSession';
 
-type TabType = 'orders' | 'quick_quests' | 'messages' | 'creative';
+type TabType = 'orders' | 'quick_quests' | 'messages' | 'creative' | 'email_events';
 
 const Admin: React.FC = () => {
   const { status, error, busy, login, logout } = useAdminSession();
   const [activeTab, setActiveTab] = useState<TabType>('orders');
   const [readings, setReadings] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
+  const [emailEvents, setEmailEvents] = useState<any[]>([]);
+  const [emailEventsError, setEmailEventsError] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
@@ -38,6 +41,8 @@ const Admin: React.FC = () => {
     if (status !== 'authed') {
       setReadings([]);
       setMessages([]);
+      setEmailEvents([]);
+      setEmailEventsError('');
       setExpandedOrderId(null);
       setResponseDrafts({});
       setSavingResponses({});
@@ -51,13 +56,22 @@ const Admin: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [readingsRes, messagesRes] = await Promise.all([
+      const [readingsRes, messagesRes, eventsRes] = await Promise.all([
         getReadings(),
         getContactMessages(),
+        getResendEmailEvents(250),
       ]);
 
       if (readingsRes.data) setReadings(readingsRes.data);
       if (messagesRes.data) setMessages(messagesRes.data);
+      if (eventsRes.data) setEmailEvents(eventsRes.data);
+      if (eventsRes.error) {
+        setEmailEventsError(eventsRes.error.message || 'Unable to load email events.');
+      } else if (eventsRes.warning) {
+        setEmailEventsError(eventsRes.warning);
+      } else {
+        setEmailEventsError('');
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -267,6 +281,27 @@ const Admin: React.FC = () => {
     return 'Email not sent yet';
   };
 
+  const formatEmailEventType = (eventType?: string) => {
+    const value = String(eventType || '').trim();
+    if (!value) return 'Unknown';
+    const normalized = value.replace(/^email\./, '').replace(/_/g, ' ');
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  };
+
+  const getEmailEventBadgeClass = (eventType?: string) => {
+    const value = String(eventType || '').toLowerCase();
+    if (value.includes('delivered') || value.includes('sent') || value.includes('opened') || value.includes('clicked')) {
+      return 'bg-green-100 text-green-800';
+    }
+    if (value.includes('failed') || value.includes('bounced') || value.includes('complained') || value.includes('suppressed')) {
+      return 'bg-red-100 text-red-800';
+    }
+    if (value.includes('delayed')) {
+      return 'bg-yellow-100 text-yellow-800';
+    }
+    return 'bg-gray-100 text-gray-800';
+  };
+
   const normalizeServiceKey = (service: string) => service.trim().toLowerCase();
 
   const SERVICE_LABELS: Record<string, string> = {
@@ -450,6 +485,23 @@ const Admin: React.FC = () => {
     [readings]
   );
 
+  const readingLookup = useMemo(() => (
+    new Map(readings.map((reading) => [String(reading?.id || ''), reading]))
+  ), [readings]);
+
+  const deliveredEmailEvents = useMemo(
+    () => emailEvents.filter((event) => String(event?.event_type || '').toLowerCase() === 'email.delivered').length,
+    [emailEvents]
+  );
+
+  const failedEmailEvents = useMemo(
+    () => emailEvents.filter((event) => {
+      const type = String(event?.event_type || '').toLowerCase();
+      return ['email.failed', 'email.bounced', 'email.complained', 'email.suppressed'].includes(type);
+    }).length,
+    [emailEvents]
+  );
+
   useEffect(() => {
     setResponseDrafts((prev) => {
       const next = { ...prev };
@@ -470,7 +522,8 @@ const Admin: React.FC = () => {
     orders: 'Orders',
     quick_quests: 'Quick Quests',
     messages: 'Messages',
-    creative: 'Creatives'
+    creative: 'Creatives',
+    email_events: 'Email Events'
   };
   if (status !== 'authed') {
     return (
@@ -522,7 +575,7 @@ const Admin: React.FC = () => {
 
       {/* Stats */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           <div className="bg-white rounded-2xl p-6 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
@@ -593,9 +646,25 @@ const Admin: React.FC = () => {
               </div>
             </div>
           </div>
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-body text-[#3A3A3A]/70 text-sm">Email Events</p>
+                <p className="font-display text-3xl font-bold text-[#2D3561]">{emailEvents.length}</p>
+                <p className="font-body text-xs text-red-600 mt-1">
+                  Failed {failedEmailEvents}
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-[#2D3561]/10 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-[#2D3561]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h18M8 12h8m-8 7h8M5 5l1.5 16h11L19 5" />
+                </svg>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
           <button
             type="button"
             onClick={() => setActiveTab('orders')}
@@ -619,6 +688,14 @@ const Admin: React.FC = () => {
           >
             <p className="font-body text-[#3A3A3A]/70 text-sm">Inbox</p>
             <p className="font-display text-lg font-semibold text-[#2D3561]">Respond to Messages</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('email_events')}
+            className="bg-white rounded-2xl p-5 shadow-lg text-left hover:shadow-xl transition-shadow"
+          >
+            <p className="font-body text-[#3A3A3A]/70 text-sm">Delivery</p>
+            <p className="font-display text-lg font-semibold text-[#2D3561]">View Email Events</p>
           </button>
           <a
             href="/admin/pawmarks/new"
@@ -654,7 +731,7 @@ const Admin: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
           <div className="border-b border-[#9DB5A5]/20">
             <nav className="flex">
-              {(['orders', 'quick_quests', 'messages', 'creative'] as TabType[]).map((tab) => (
+              {(['orders', 'quick_quests', 'messages', 'email_events', 'creative'] as TabType[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -1127,6 +1204,94 @@ const Admin: React.FC = () => {
                         </div>
                       </div>
                     ))
+                  )}
+                </div>
+              )}
+
+              {/* Email Events Tab */}
+              {activeTab === 'email_events' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="rounded-xl border border-[#9DB5A5]/20 p-4 bg-[#F5F1E8]">
+                      <p className="font-body text-xs text-[#3A3A3A]/70">Tracked events</p>
+                      <p className="font-display text-2xl font-bold text-[#2D3561]">{emailEvents.length}</p>
+                    </div>
+                    <div className="rounded-xl border border-[#9DB5A5]/20 p-4 bg-[#F5F1E8]">
+                      <p className="font-body text-xs text-[#3A3A3A]/70">Delivered</p>
+                      <p className="font-display text-2xl font-bold text-green-700">{deliveredEmailEvents}</p>
+                    </div>
+                    <div className="rounded-xl border border-[#9DB5A5]/20 p-4 bg-[#F5F1E8]">
+                      <p className="font-body text-xs text-[#3A3A3A]/70">Failures / suppressions</p>
+                      <p className="font-display text-2xl font-bold text-red-700">{failedEmailEvents}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-body text-sm text-[#3A3A3A]/80">
+                      Webhook log from Resend. Refresh to pull latest events.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={loadData}
+                      className="px-4 py-2 bg-[#2D3561] text-white font-display text-sm font-semibold rounded-lg hover:bg-[#3D4A7A] transition-colors"
+                    >
+                      Refresh Events
+                    </button>
+                  </div>
+
+                  {emailEventsError ? (
+                    <p className="font-body text-sm text-red-600">{emailEventsError}</p>
+                  ) : null}
+
+                  {emailEvents.length === 0 ? (
+                    <p className="text-center font-body text-[#3A3A3A]/70 py-8">No email events logged yet.</p>
+                  ) : (
+                    emailEvents.map((eventRow) => {
+                      const readingId = String(eventRow?.reading_id || '').trim();
+                      const reading = readingLookup.get(readingId);
+                      const petName = reading?.pets?.name || 'Unknown Pet';
+                      const customerName = [reading?.customers?.first_name, reading?.customers?.last_name]
+                        .filter(Boolean)
+                        .join(' ')
+                        .trim() || 'Unknown Customer';
+                      return (
+                        <div
+                          key={eventRow.id || `${eventRow.svix_id}-${eventRow.created_at}`}
+                          className="border border-[#9DB5A5]/20 rounded-xl p-4 hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h3 className="font-display text-base font-bold text-[#2D3561]">
+                                  {formatEmailEventType(eventRow.event_type)}
+                                </h3>
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getEmailEventBadgeClass(eventRow.event_type)}`}>
+                                  {String(eventRow.event_type || 'unknown')}
+                                </span>
+                              </div>
+                              <p className="font-body text-sm text-[#3A3A3A] break-all">
+                                <strong>Recipient:</strong> {eventRow.recipient_email || 'N/A'}
+                              </p>
+                              <p className="font-body text-sm text-[#3A3A3A] break-all">
+                                <strong>Email ID:</strong> {eventRow.email_id || 'N/A'}
+                              </p>
+                              <p className="font-body text-sm text-[#3A3A3A] break-all">
+                                <strong>Reading ID:</strong> {readingId || 'N/A'}
+                              </p>
+                              {readingId ? (
+                                <p className="font-body text-sm text-[#3A3A3A]">
+                                  <strong>Order:</strong> {petName} ({customerName})
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="text-sm text-[#3A3A3A]/80">
+                              <p><strong>Event time:</strong> {formatDate(eventRow.event_created_at || eventRow.created_at)}</p>
+                              <p><strong>Logged:</strong> {formatDate(eventRow.created_at)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               )}
