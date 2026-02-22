@@ -119,6 +119,12 @@ const Index: React.FC = () => {
     }
   ];
 
+  const homeStats = [
+    { value: `${testimonials.length}`, label: 'Client voices' },
+    { value: '3', label: 'Favorite pathways' },
+    { value: '6', label: 'Quick links' }
+  ];
+
   return (
     <SiteLayout
       footerLinks={[
@@ -129,7 +135,8 @@ const Index: React.FC = () => {
         { label: 'Intake', to: '/intake' }
       ]}
     >
-      <section id="home" className="hero">
+      <div className="home-mobile-bento">
+      <section id="home" className="hero home-bento-tile home-bento-hero">
         <div className="container home-layout">
           <div className="home-intro">
             <h1 className="hero-title">
@@ -174,12 +181,20 @@ const Index: React.FC = () => {
         </div>
       </section>
 
-      <section className="section section-flush">
+      <section className="section section-flush home-bento-tile home-bento-social">
         <div className="container testimonial-marquee">
           <div className="marquee-header">
             <div>
               <p className="eyebrow">Client love</p>
               <h2 className="section-title">What clients are saying</h2>
+            </div>
+            <div className="home-proof-stats" aria-label="Home social proof highlights">
+              {homeStats.map((stat) => (
+                <div className="home-proof-stat" key={stat.label}>
+                  <strong>{stat.value}</strong>
+                  <span>{stat.label}</span>
+                </div>
+              ))}
             </div>
           </div>
           <div className="marquee-window" role="region" aria-label="Rolling client testimonials">
@@ -199,7 +214,7 @@ const Index: React.FC = () => {
         </div>
       </section>
 
-      <section className="section">
+      <section className="section home-bento-tile home-bento-features">
         <div className="container split-panels">
           <div className="card">
             <h2 className="section-title">Our Story</h2>
@@ -223,7 +238,7 @@ const Index: React.FC = () => {
         </div>
       </section>
 
-      <section className="section">
+      <section className="section home-bento-tile home-bento-favorites">
         <div className="container">
           <div className="card">
             <div className="pill">Most loved · Best starting point</div>
@@ -253,13 +268,10 @@ const Index: React.FC = () => {
           </div>
         </div>
       </section>
-
+      </div>
 
     </SiteLayout>
   );
 };
 
 export default Index;
-
-
-
