@@ -11,8 +11,8 @@ const Testimonials: React.FC = () => {
         { label: 'Memorial', to: '/memorial' }
       ]}
     >
-      <section className="hero">
-        <div className="container hero-grid">
+      <section className="hero testimonials-hero">
+        <div className="container hero-grid testimonials-hero-grid">
           <div className="hero-card">
             <div className="pill">Emotional proof | Real stories</div>
             <h1 className="hero-title">Testimonials</h1>
@@ -22,16 +22,16 @@ const Testimonials: React.FC = () => {
               <Link className="cta secondary" to="/services">View Services</Link>
             </div>
           </div>
-          <div className="stack">
+          <div className="stack testimonials-hero-aside">
             <img className="hero-logo" src="/assets/pawollelogo.png" alt="Illustrated Pawollie Sense logo featuring Oliver" />
           </div>
         </div>
       </section>
 
-      <section className="section">
-        <div className="container">
+      <section className="section testimonials-section">
+        <div className="container testimonials-shell">
           <h2 className="section-title">What clients are saying</h2>
-          <div className="testimonial-grid">
+          <div className="testimonial-grid testimonials-grid">
             <div className="testimonial-card">
               <div className="testimonial-avatar">
                 <img src="/assets/pawollelogo.png" alt="Testimonial portrait placeholder" />

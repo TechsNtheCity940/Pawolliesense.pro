@@ -80,7 +80,7 @@ const Pawmarks: React.FC = () => {
       ]}
     >
       <section className="hero pawmarks-hero">
-        <div className="container hero-grid pawmarks-hero-grid">
+        <div className="container hero-grid pawmarks-hero-grid pawmarks-shell">
           <div className="hero-card">
             <div className="pill">Forever Pawmarks | Memorial Profiles</div>
             <h1 className="hero-title">Pawmarks</h1>
@@ -99,8 +99,8 @@ const Pawmarks: React.FC = () => {
         </div>
       </section>
 
-      <section className="section">
-        <div className="container">
+      <section className="section pawmarks-section">
+        <div className="container pawmarks-shell">
           {loading ? (
             <div className="card">
               <h2 className="section-title">Loading Pawmarks</h2>
