@@ -2,6 +2,17 @@ const RESEND_API_BASE = 'https://api.resend.com';
 
 const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && String(value).trim() !== '');
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const parseRetryAfterMs = (headers) => {
+  const retryAfter = headers?.get?.('retry-after');
+  const seconds = Number(retryAfter || 0);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.min(Math.ceil(seconds * 1000), 5000);
+  }
+  return 650;
+};
+
 const getResendApiKey = () =>
   firstDefined(
     process.env.RESEND_API_KEY,
@@ -16,49 +27,56 @@ const getResendAudienceId = () =>
     process.env.RESEND_CONTACTS_AUDIENCE_ID
   );
 
-const resendRequest = async ({ apiKey, path, method = 'GET', body }) => {
-  const response = await fetch(`${RESEND_API_BASE}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: body ? JSON.stringify(body) : undefined
+const getAllowedPropertyKeys = () =>
+  String(process.env.RESEND_CONTACT_PROPERTY_KEYS || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const sanitizeProperties = (properties) => {
+  if (!properties || typeof properties !== 'object') return undefined;
+  const allowedKeys = getAllowedPropertyKeys();
+  if (!allowedKeys.length) return undefined;
+  const sanitized = {};
+  allowedKeys.forEach((key) => {
+    const value = properties[key];
+    if (value === undefined || value === null) return;
+    const next = String(value).trim();
+    if (!next) return;
+    sanitized[key] = next;
   });
-  const data = await response.json().catch(() => ({}));
-  return { ok: response.ok, status: response.status, data };
+  return Object.keys(sanitized).length ? sanitized : undefined;
+};
+
+const resendRequest = async ({ apiKey, path, method = 'GET', body, retries = 1 }) => {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const response = await fetch(`${RESEND_API_BASE}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (response.status !== 429 || attempt >= retries) {
+      return { ok: response.ok, status: response.status, data, headers: response.headers };
+    }
+    await sleep(parseRetryAfterMs(response.headers));
+  }
+
+  return { ok: false, status: 429, data: { message: 'rate limit exceeded' } };
 };
 
 const normalizeContactInput = ({ email, firstName, lastName, properties }) => ({
   email: String(email || '').trim().toLowerCase(),
   firstName: String(firstName || '').trim() || undefined,
   lastName: String(lastName || '').trim() || undefined,
-  properties: properties && typeof properties === 'object' ? properties : undefined
+  properties: sanitizeProperties(properties)
 });
 
 const upsertGlobalContact = async ({ apiKey, email, firstName, lastName, properties }) => {
-  const encodedEmail = encodeURIComponent(email);
-
-  const patchAttempt = await resendRequest({
-    apiKey,
-    path: `/contacts/${encodedEmail}`,
-    method: 'PATCH',
-    body: {
-      firstName,
-      lastName,
-      unsubscribed: false,
-      properties
-    }
-  });
-
-  if (patchAttempt.ok) {
-    return { ok: true, mode: 'updated', data: patchAttempt.data };
-  }
-
-  if (patchAttempt.status !== 404) {
-    throw new Error(patchAttempt.data?.message || patchAttempt.data?.error || 'Unable to update Resend contact.');
-  }
-
   const createAttempt = await resendRequest({
     apiKey,
     path: '/contacts',
@@ -72,6 +90,10 @@ const upsertGlobalContact = async ({ apiKey, email, firstName, lastName, propert
     }
   });
 
+  if (createAttempt.status === 409 || String(createAttempt.data?.message || '').toLowerCase().includes('already')) {
+    return { ok: true, mode: 'exists', data: createAttempt.data };
+  }
+
   if (!createAttempt.ok) {
     throw new Error(createAttempt.data?.message || createAttempt.data?.error || 'Unable to create Resend contact.');
   }
@@ -80,27 +102,7 @@ const upsertGlobalContact = async ({ apiKey, email, firstName, lastName, propert
 };
 
 const upsertAudienceContact = async ({ apiKey, audienceId, email, firstName, lastName }) => {
-  const encodedEmail = encodeURIComponent(email);
   const basePath = `/audiences/${encodeURIComponent(audienceId)}/contacts`;
-
-  const patchAttempt = await resendRequest({
-    apiKey,
-    path: `${basePath}/${encodedEmail}`,
-    method: 'PATCH',
-    body: {
-      firstName,
-      lastName,
-      unsubscribed: false
-    }
-  });
-
-  if (patchAttempt.ok) {
-    return { ok: true, mode: 'updated', data: patchAttempt.data };
-  }
-
-  if (patchAttempt.status !== 404) {
-    throw new Error(patchAttempt.data?.message || patchAttempt.data?.error || 'Unable to update audience contact.');
-  }
 
   const createAttempt = await resendRequest({
     apiKey,
@@ -113,6 +115,10 @@ const upsertAudienceContact = async ({ apiKey, audienceId, email, firstName, las
       unsubscribed: false
     }
   });
+
+  if (createAttempt.status === 409 || String(createAttempt.data?.message || '').toLowerCase().includes('already')) {
+    return { ok: true, mode: 'exists', data: createAttempt.data };
+  }
 
   if (!createAttempt.ok) {
     throw new Error(createAttempt.data?.message || createAttempt.data?.error || 'Unable to create audience contact.');

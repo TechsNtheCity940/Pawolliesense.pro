@@ -1,6 +1,17 @@
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { getResendApiKey } = require('./_resendContacts');
+const DEFAULT_RESEND_FROM = 'no-reply@pawolliesense.pro';
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const parseRetryAfterMs = (headers) => {
+  const retryAfter = headers?.get?.('retry-after');
+  const seconds = Number(retryAfter || 0);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.min(Math.ceil(seconds * 1000), 5000);
+  }
+  return 700;
+};
 
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
 
@@ -66,17 +77,28 @@ async function fetchStripeLineItems(sessionId, stripeSecret) {
 }
 
 async function sendResendEmail({ apiKey, from, to, subject, html, text }) {
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ from, to, subject, html, text })
-  });
+  const maxRetries = 4;
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ from, to, subject, html, text })
+    });
 
-  if (!response.ok) {
-    const data = await response.json();
+    if (response.ok) {
+      return;
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 429 && attempt < maxRetries) {
+      const baseDelay = parseRetryAfterMs(response.headers);
+      const backoff = baseDelay + (attempt * 350);
+      await sleep(backoff);
+      continue;
+    }
     throw new Error(data?.message || 'Resend email failed.');
   }
 }
@@ -257,12 +279,11 @@ async function sendSmtpEmail({ to, subject, html, text }) {
 }
 
 async function sendConfirmationEmail({ to, subject, html, text }) {
-  const from = process.env.EMAIL_FROM;
   const resendApiKey = getResendApiKey();
   if (resendApiKey) {
     return sendResendEmail({
       apiKey: resendApiKey,
-      from: from || 'no-reply@pawolliesense.com',
+      from: process.env.RESEND_FROM || DEFAULT_RESEND_FROM,
       to,
       subject,
       html,
@@ -270,6 +291,7 @@ async function sendConfirmationEmail({ to, subject, html, text }) {
     });
   }
 
+  const from = process.env.EMAIL_FROM;
   if (process.env.SENDGRID_API_KEY) {
     return sendSendGridEmail({
       apiKey: process.env.SENDGRID_API_KEY,

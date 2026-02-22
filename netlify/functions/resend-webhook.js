@@ -127,9 +127,16 @@ const normalizeTags = (rawTags) => {
 };
 
 const firstRecipient = (data) => {
+  if (typeof data?.to === 'string' && data.to.trim()) {
+    return String(data.to).trim().toLowerCase();
+  }
   const toList = Array.isArray(data?.to) ? data.to : [];
   if (toList.length > 0) {
     return String(toList[0] || '').trim().toLowerCase();
+  }
+  const nestedToList = Array.isArray(data?.email?.to) ? data.email.to : [];
+  if (nestedToList.length > 0) {
+    return String(nestedToList[0] || '').trim().toLowerCase();
   }
   const email = firstDefined(data?.email, data?.recipient);
   return String(email || '').trim().toLowerCase();
@@ -137,13 +144,13 @@ const firstRecipient = (data) => {
 
 const parseEvent = (verifiedPayload) => {
   const data = verifiedPayload?.data || {};
-  const tags = normalizeTags(data.tags);
+  const tags = normalizeTags(firstDefined(data.tags, data?.email?.tags));
   return {
     type: String(verifiedPayload?.type || 'unknown').trim(),
-    createdAt: verifiedPayload?.created_at || null,
+    createdAt: firstDefined(data?.created_at, verifiedPayload?.created_at, null),
     data,
     tags,
-    emailId: String(firstDefined(data.email_id, data.id, tags.email_id) || '').trim(),
+    emailId: String(firstDefined(data.email_id, data?.email?.id, data.id, tags.email_id) || '').trim(),
     recipientEmail: firstRecipient(data),
     readingIdTag: String(firstDefined(tags.reading_id, tags.readingId) || '').trim(),
     customerIdTag: String(firstDefined(tags.customer_id, tags.customerId) || '').trim()
@@ -341,6 +348,6 @@ exports.handler = async (event) => {
     return jsonResponse(200, { ok: true });
   } catch (error) {
     console.error('Resend webhook processing failed', error);
-    return jsonResponse(200, { ok: true, warning: error.message || 'Webhook processing error.' });
+    return jsonResponse(500, { ok: false, error: error.message || 'Webhook processing error.' });
   }
 };

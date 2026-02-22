@@ -27,6 +27,16 @@ const escapeHtml = (value) =>
     .replace(/'/g, '&#39;');
 
 const normalizeService = (service) => String(service || '').trim().toLowerCase();
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const parseRetryAfterMs = (headers) => {
+  const retryAfter = headers?.get?.('retry-after');
+  const seconds = Number(retryAfter || 0);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.min(Math.ceil(seconds * 1000), 5000);
+  }
+  return 700;
+};
 
 const getServiceLabel = (services) => {
   if (!Array.isArray(services) || services.length === 0) return 'Pawollie Sense Reading';
@@ -83,27 +93,40 @@ const buildEmailPayload = (reading) => {
 };
 
 const sendResendEmail = async ({ apiKey, from, to, subject, html, text, tags }) => {
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      from,
-      to,
-      subject,
-      html,
-      text,
-      tags: Array.isArray(tags) && tags.length ? tags : undefined
-    })
-  });
+  const maxRetries = 4;
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from,
+        to,
+        subject,
+        html,
+        text,
+        tags: Array.isArray(tags) && tags.length ? tags : undefined
+      })
+    });
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) {
+      return data;
+    }
+
+    if (response.status === 429 && attempt < maxRetries) {
+      const baseDelay = parseRetryAfterMs(response.headers);
+      const backoff = baseDelay + (attempt * 350);
+      await sleep(backoff);
+      continue;
+    }
+
     throw new Error(data?.message || data?.error || 'Resend email failed.');
   }
-  return data;
+
+  throw new Error('Resend email failed after retries.');
 };
 
 const sendSendGridEmail = async ({ apiKey, from, to, subject, html, text }) => {
@@ -153,9 +176,9 @@ const sendSmtpEmail = async ({ to, subject, html, text }) => {
 };
 
 const sendEmail = async ({ to, subject, html, text, tags }) => {
-  const from = process.env.EMAIL_FROM || DEFAULT_FROM_EMAIL;
   const resendApiKey = getResendApiKey();
   if (resendApiKey) {
+    const from = process.env.RESEND_FROM || DEFAULT_FROM_EMAIL;
     const result = await sendResendEmail({
       apiKey: resendApiKey,
       from,
@@ -167,6 +190,8 @@ const sendEmail = async ({ to, subject, html, text, tags }) => {
     });
     return { provider: 'resend', emailId: result?.id || null };
   }
+
+  const from = process.env.EMAIL_FROM || DEFAULT_FROM_EMAIL;
 
   if (process.env.SENDGRID_API_KEY) {
     await sendSendGridEmail({
@@ -194,6 +219,15 @@ const sendReadingResponseEmail = async (reading) => {
   const customerId = String(reading?.customer_id || '').trim();
   const serviceTags = Array.isArray(reading?.services) ? reading.services : [];
 
+  const payload = buildEmailPayload(reading);
+  const sendResult = await sendEmail({
+    ...payload,
+    tags: [
+      readingId ? { name: 'reading_id', value: readingId } : null,
+      customerId ? { name: 'customer_id', value: customerId } : null
+    ].filter(Boolean)
+  });
+
   try {
     await upsertResendContact({
       email: customer.email,
@@ -208,14 +242,6 @@ const sendReadingResponseEmail = async (reading) => {
     console.warn('Resend contact sync failed', error?.message || error);
   }
 
-  const payload = buildEmailPayload(reading);
-  const sendResult = await sendEmail({
-    ...payload,
-    tags: [
-      readingId ? { name: 'reading_id', value: readingId } : null,
-      customerId ? { name: 'customer_id', value: customerId } : null
-    ].filter(Boolean)
-  });
   return {
     to: payload.to,
     provider: sendResult.provider,

@@ -5,6 +5,7 @@ const {
   getCredentials
 } = require('./_adminAuth');
 const { sendReadingResponseEmail } = require('./_responseEmail');
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const jsonResponse = (statusCode, body) => ({
   statusCode,
@@ -170,6 +171,9 @@ exports.handler = async (event) => {
           // Best effort logging only.
         }
       }
+
+      // Respect Resend free-tier throughput limits during bulk sends.
+      await sleep(550);
     }
 
     return jsonResponse(200, {
