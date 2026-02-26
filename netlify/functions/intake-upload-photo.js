@@ -45,13 +45,31 @@ const supabaseFetch = async (path, { method = 'GET', body, headers = {}, prefer 
 
 const getReading = async (readingId) => {
   const data = await supabaseFetch(
-    `/rest/v1/readings?id=eq.${encodeURIComponent(readingId)}&select=id,customer_id,pet_id,customers(first_name,last_name,email),pets(name)&limit=1`
+    `/rest/v1/readings?id=eq.${encodeURIComponent(readingId)}&select=id,customer_id,pet_id,customers(id,first_name,last_name,email,profile_image_url),pets(id,name,primary_image_url)&limit=1`
   );
   const row = Array.isArray(data) ? data[0] : null;
   if (!row) {
     throw new Error('Reading not found.');
   }
   return row;
+};
+
+const patchCustomerProfilePhoto = async (customerId, photoUrl) => {
+  if (!customerId || !photoUrl) return;
+  await supabaseFetch(`/rest/v1/customers?id=eq.${encodeURIComponent(customerId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile_image_url: photoUrl })
+  });
+};
+
+const patchPetPrimaryPhoto = async (petId, photoUrl) => {
+  if (!petId || !photoUrl) return;
+  await supabaseFetch(`/rest/v1/pets?id=eq.${encodeURIComponent(petId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ primary_image_url: photoUrl })
+  });
 };
 
 const inferExtension = (name, fileType) => {
@@ -133,6 +151,22 @@ exports.handler = async function handler(event) {
     });
 
     const saved = Array.isArray(fileRows) ? fileRows[0] : fileRows;
+
+    const isOwnerPhoto = ['owner_profile', 'guardian_profile'].includes(photoType);
+    if (isOwnerPhoto && !reading?.customers?.profile_image_url) {
+      try {
+        await patchCustomerProfilePhoto(reading.customer_id, publicUrl);
+      } catch (error) {
+        console.warn('Unable to set customer profile image', error.message || error);
+      }
+    } else if (!isOwnerPhoto && !reading?.pets?.primary_image_url) {
+      try {
+        await patchPetPrimaryPhoto(reading.pet_id, publicUrl);
+      } catch (error) {
+        console.warn('Unable to set pet primary image', error.message || error);
+      }
+    }
+
     return jsonResponse(200, {
       ok: true,
       file: {

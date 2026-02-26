@@ -3,11 +3,14 @@ import {
   getReadings, 
   getContactMessages, 
   getResendEmailEvents,
+  getKeepsakeOrders,
   updateReadingStatus,
   updateContactMessageStatus,
   updateReadingNotes,
   sendReadingResponseEmail,
-  sendAllReadingResponseEmails
+  sendAllReadingResponseEmails,
+  runKeepsakeFulfillment,
+  updateKeepsakeOrder
 } from '@/lib/database';
 import { pawollieLogoUrl } from '@/lib/brand-assets';
 import AdminLoginCard from '@/components/admin/AdminLoginCard';
@@ -22,6 +25,8 @@ const Admin: React.FC = () => {
   const [messages, setMessages] = useState<any[]>([]);
   const [emailEvents, setEmailEvents] = useState<any[]>([]);
   const [emailEventsError, setEmailEventsError] = useState<string>('');
+  const [keepsakeOrders, setKeepsakeOrders] = useState<any[]>([]);
+  const [keepsakeError, setKeepsakeError] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
@@ -31,6 +36,19 @@ const Admin: React.FC = () => {
   const [repromptDrafts, setRepromptDrafts] = useState<Record<string, string>>({});
   const [sendingEmails, setSendingEmails] = useState<Record<string, boolean>>({});
   const [emailErrors, setEmailErrors] = useState<Record<string, string>>({});
+  const [processingKeepsakes, setProcessingKeepsakes] = useState<Record<string, boolean>>({});
+  const [processingAllKeepsakes, setProcessingAllKeepsakes] = useState(false);
+  const [savingKeepsakeDrafts, setSavingKeepsakeDrafts] = useState<Record<string, boolean>>({});
+  const [approvingKeepsakes, setApprovingKeepsakes] = useState<Record<string, boolean>>({});
+  const [keepsakeDrafts, setKeepsakeDrafts] = useState<Record<string, {
+    title: string;
+    subtitle: string;
+    overlay_text: string;
+    back_text: string;
+    generated_asset_url: string;
+    keepsake_notes: string;
+  }>>({});
+  const [keepsakeResult, setKeepsakeResult] = useState('');
   const [sendingAllEmails, setSendingAllEmails] = useState(false);
   const [bulkEmailResult, setBulkEmailResult] = useState<string>('');
 
@@ -43,11 +61,19 @@ const Admin: React.FC = () => {
       setMessages([]);
       setEmailEvents([]);
       setEmailEventsError('');
+      setKeepsakeOrders([]);
+      setKeepsakeError('');
       setExpandedOrderId(null);
       setResponseDrafts({});
       setSavingResponses({});
       setSendingEmails({});
       setEmailErrors({});
+      setProcessingKeepsakes({});
+      setProcessingAllKeepsakes(false);
+      setSavingKeepsakeDrafts({});
+      setApprovingKeepsakes({});
+      setKeepsakeDrafts({});
+      setKeepsakeResult('');
       setBulkEmailResult('');
       setLoading(false);
     }
@@ -56,10 +82,11 @@ const Admin: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [readingsRes, messagesRes, eventsRes] = await Promise.all([
+      const [readingsRes, messagesRes, eventsRes, keepsakesRes] = await Promise.all([
         getReadings(),
         getContactMessages(),
         getResendEmailEvents(250),
+        getKeepsakeOrders(250),
       ]);
 
       if (readingsRes.data) setReadings(readingsRes.data);
@@ -71,6 +98,13 @@ const Admin: React.FC = () => {
         setEmailEventsError(eventsRes.warning);
       } else {
         setEmailEventsError('');
+      }
+
+      if (keepsakesRes.data) setKeepsakeOrders(keepsakesRes.data);
+      if (keepsakesRes.error) {
+        setKeepsakeError(keepsakesRes.error.message || 'Unable to load keepsake orders.');
+      } else {
+        setKeepsakeError('');
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -159,6 +193,16 @@ const Admin: React.FC = () => {
         });
       }
 
+      setProcessingKeepsakes((prev) => ({ ...prev, [readingId]: true }));
+      const keepResult = await runKeepsakeFulfillment({ readingId, limit: 8, action: 'generate' });
+      if (keepResult.error) {
+        setKeepsakeResult(`Keepsake pipeline error: ${keepResult.error.message}`);
+      } else if (keepResult.data && Number(keepResult.data?.processed || 0) > 0) {
+        const ok = Number(keepResult.data?.succeeded || 0);
+        const failed = Number(keepResult.data?.failed || 0);
+        setKeepsakeResult(`Keepsakes processed: ${ok} succeeded, ${failed} failed.`);
+      }
+
       await loadData();
     } catch (error) {
       console.error('Error saving response:', error);
@@ -169,6 +213,7 @@ const Admin: React.FC = () => {
     } finally {
       setSavingResponses((prev) => ({ ...prev, [readingId]: false }));
       setSendingEmails((prev) => ({ ...prev, [readingId]: false }));
+      setProcessingKeepsakes((prev) => ({ ...prev, [readingId]: false }));
     }
   };
 
@@ -217,6 +262,136 @@ const Admin: React.FC = () => {
     }
   };
 
+  const handleRunKeepsakePipeline = async (params: {
+    readingId?: string;
+    keepsakeOrderId?: string;
+    force?: boolean;
+    action?: 'generate' | 'remake' | 'approve';
+  } = {}) => {
+    const key = params.keepsakeOrderId || params.readingId || 'bulk';
+    setProcessingKeepsakes((prev) => ({ ...prev, [key]: true }));
+    setKeepsakeResult('');
+    try {
+      const result = await runKeepsakeFulfillment({
+        readingId: params.readingId,
+        keepsakeOrderId: params.keepsakeOrderId,
+        force: params.force ?? false,
+        action: params.action || 'generate',
+        limit: 12
+      });
+      if (result.error) {
+        throw result.error;
+      }
+      const ok = Number(result.data?.succeeded || 0);
+      const failed = Number(result.data?.failed || 0);
+      const processed = Number(result.data?.processed || 0);
+      setKeepsakeResult(`Keepsake pipeline: processed ${processed}, succeeded ${ok}, failed ${failed}.`);
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to run keepsake pipeline.';
+      setKeepsakeResult(message);
+      console.error('Keepsake pipeline error:', error);
+    } finally {
+      setProcessingKeepsakes((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const handleRunAllKeepsakes = async () => {
+    setProcessingAllKeepsakes(true);
+    setKeepsakeResult('');
+    try {
+      const result = await runKeepsakeFulfillment({ limit: 20, action: 'generate' });
+      if (result.error) {
+        throw result.error;
+      }
+      const ok = Number(result.data?.succeeded || 0);
+      const failed = Number(result.data?.failed || 0);
+      const processed = Number(result.data?.processed || 0);
+      setKeepsakeResult(`Keepsake pipeline: processed ${processed}, succeeded ${ok}, failed ${failed}.`);
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to run keepsake pipeline.';
+      setKeepsakeResult(message);
+      console.error('Run all keepsakes error:', error);
+    } finally {
+      setProcessingAllKeepsakes(false);
+    }
+  };
+
+  const handleKeepsakeDraftChange = (
+    keepsakeOrderId: string,
+    field: 'title' | 'subtitle' | 'overlay_text' | 'back_text' | 'generated_asset_url' | 'keepsake_notes',
+    value: string
+  ) => {
+    setKeepsakeDrafts((prev) => ({
+      ...prev,
+      [keepsakeOrderId]: {
+        title: prev[keepsakeOrderId]?.title || '',
+        subtitle: prev[keepsakeOrderId]?.subtitle || '',
+        overlay_text: prev[keepsakeOrderId]?.overlay_text || '',
+        back_text: prev[keepsakeOrderId]?.back_text || '',
+        generated_asset_url: prev[keepsakeOrderId]?.generated_asset_url || '',
+        keepsake_notes: prev[keepsakeOrderId]?.keepsake_notes || '',
+        [field]: value
+      }
+    }));
+  };
+
+  const handleSaveKeepsakeDraft = async (keepsakeOrderId: string) => {
+    const draft = keepsakeDrafts[keepsakeOrderId];
+    if (!draft) return;
+    setSavingKeepsakeDrafts((prev) => ({ ...prev, [keepsakeOrderId]: true }));
+    try {
+      const generatedCopy = {
+        title: draft.title,
+        subtitle: draft.subtitle,
+        overlay_text: draft.overlay_text,
+        back_text: draft.back_text
+      };
+      const result = await updateKeepsakeOrder({
+        keepsakeOrderId,
+        generatedCopy,
+        generatedAssetUrl: draft.generated_asset_url,
+        keepsakeNotes: draft.keepsake_notes,
+        status: 'awaiting_approval'
+      });
+      if (result.error) {
+        throw result.error;
+      }
+      setKeepsakeResult('Keepsake adjustments saved.');
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to save keepsake adjustments.';
+      setKeepsakeResult(message);
+      console.error('Save keepsake draft error:', error);
+    } finally {
+      setSavingKeepsakeDrafts((prev) => ({ ...prev, [keepsakeOrderId]: false }));
+    }
+  };
+
+  const handleApproveKeepsake = async (keepsakeOrderId: string) => {
+    setApprovingKeepsakes((prev) => ({ ...prev, [keepsakeOrderId]: true }));
+    try {
+      const result = await runKeepsakeFulfillment({
+        keepsakeOrderId,
+        action: 'approve',
+        force: true,
+        limit: 1
+      });
+      if (result.error) {
+        throw result.error;
+      }
+      setKeepsakeResult('Keepsake approved and sent to Shopify draft order.');
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to approve keepsake.';
+      setKeepsakeResult(message);
+      console.error('Approve keepsake error:', error);
+    } finally {
+      setApprovingKeepsakes((prev) => ({ ...prev, [keepsakeOrderId]: false }));
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -227,6 +402,18 @@ const Admin: React.FC = () => {
       case 'read': return 'bg-blue-100 text-blue-800';
       case 'replied': return 'bg-green-100 text-green-800';
       case 'archived': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getKeepsakeStatusColor = (status: string) => {
+    switch (String(status || '').toLowerCase()) {
+      case 'queued': return 'bg-yellow-100 text-yellow-800';
+      case 'processing': return 'bg-blue-100 text-blue-800';
+      case 'shopify_draft_created': return 'bg-green-100 text-green-800';
+      case 'submitted': return 'bg-green-100 text-green-800';
+      case 'fulfilled': return 'bg-green-100 text-green-800';
+      case 'failed': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -249,6 +436,17 @@ const Admin: React.FC = () => {
   );
 
   const parseAdditionalNotes = (raw: any) => {
+    if (!raw) return {};
+    if (typeof raw === 'object') return raw;
+    try {
+      const parsed = JSON.parse(raw);
+      return typeof parsed === 'object' && parsed ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const parseJsonObject = (raw: any) => {
     if (!raw) return {};
     if (typeof raw === 'object') return raw;
     try {
@@ -485,6 +683,14 @@ const Admin: React.FC = () => {
     [readings]
   );
 
+  const keepsakePipelineOrders = useMemo(
+    () => keepsakeOrders.filter((order) => {
+      const type = String(order?.keepsake_type || '').toLowerCase();
+      return ['memorial_print', 'chart_certificate', 'apparel', 'tag_ornament'].includes(type);
+    }),
+    [keepsakeOrders]
+  );
+
   const readingLookup = useMemo(() => (
     new Map(readings.map((reading) => [String(reading?.id || ''), reading]))
   ), [readings]);
@@ -517,6 +723,29 @@ const Admin: React.FC = () => {
       return changed ? next : prev;
     });
   }, [readings]);
+
+  useEffect(() => {
+    setKeepsakeDrafts((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      keepsakeOrders.forEach((order) => {
+        const id = String(order?.id || '');
+        if (!id || next[id]) return;
+        const copy = parseJsonObject(order?.generated_copy);
+        const customization = parseJsonObject(order?.customization);
+        next[id] = {
+          title: String(copy?.title || ''),
+          subtitle: String(copy?.subtitle || ''),
+          overlay_text: String(copy?.overlay_text || ''),
+          back_text: String(copy?.back_text || ''),
+          generated_asset_url: String(order?.generated_asset_url || ''),
+          keepsake_notes: String(customization?.keepsake_notes || '')
+        };
+        changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [keepsakeOrders]);
 
   const tabLabels: Record<TabType, string> = {
     orders: 'Orders',
@@ -824,6 +1053,9 @@ const Admin: React.FC = () => {
                               <p className="font-body text-sm text-[#3A3A3A]/70">
                                 {getEmailDeliveryText(reading)}
                               </p>
+                              <p className="font-body text-sm text-[#3A3A3A]/70">
+                                Keepsakes: {reading?.keepsake_status || 'none'}
+                              </p>
                             </div>
                             <div className="flex flex-col items-end gap-2">
                               <p className="font-display text-xl font-bold text-[#D4AF37]">
@@ -867,6 +1099,10 @@ const Admin: React.FC = () => {
                                   <p><strong>Completed:</strong> {completedLabel}</p>
                                   <p><strong>Services:</strong> {getServiceNames(reading.services || [])}</p>
                                   <p><strong>Email delivery:</strong> {getEmailDeliveryText(reading)}</p>
+                                  <p><strong>Keepsake pipeline:</strong> {reading?.keepsake_status || 'none'}</p>
+                                  {reading?.keepsake_last_error ? (
+                                    <p><strong>Keepsake error:</strong> {reading.keepsake_last_error}</p>
+                                  ) : null}
                                   {reading?.response_email_provider ? (
                                     <p><strong>Email provider:</strong> {reading.response_email_provider}</p>
                                   ) : null}
@@ -882,6 +1118,14 @@ const Admin: React.FC = () => {
                                     Open Wag Book Pipeline
                                   </a>
                                 ) : null}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRunKeepsakePipeline({ readingId: orderId })}
+                                  disabled={Boolean(processingKeepsakes[orderId])}
+                                  className="inline-flex mt-3 ml-2 px-3 py-2 border border-[#2D3561]/30 text-[#2D3561] font-display text-xs font-semibold rounded-lg hover:bg-[#2D3561]/10 transition-colors disabled:opacity-70"
+                                >
+                                  {processingKeepsakes[orderId] ? 'Processing Keepsakes...' : 'Run Keepsake Pipeline'}
+                                </button>
                               </div>
                               <div>
                                 <h4 className="font-display font-semibold text-[#2D3561] mb-2">AI Reading Tools</h4>
@@ -1389,6 +1633,187 @@ const Admin: React.FC = () => {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                      <div>
+                        <h3 className="font-display text-xl font-semibold text-[#2D3561]">Shopify Keepsake Pipeline</h3>
+                        <p className="font-body text-sm text-[#3A3A3A]/70">
+                          Generates keepsake assets and creates Shopify draft print/ship orders.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRunAllKeepsakes}
+                        disabled={processingAllKeepsakes}
+                        className="px-4 py-2 bg-[#2D3561] text-white font-display text-sm font-semibold rounded-lg hover:bg-[#3D4A7A] transition-colors disabled:opacity-70"
+                      >
+                        {processingAllKeepsakes ? 'Processing...' : 'Run All Pending Keepsakes'}
+                      </button>
+                    </div>
+                    {keepsakeResult ? (
+                      <p className="font-body text-sm text-[#2D3561] mb-3">{keepsakeResult}</p>
+                    ) : null}
+                    {keepsakeError ? (
+                      <p className="font-body text-sm text-red-600 mb-3">{keepsakeError}</p>
+                    ) : null}
+                    {keepsakePipelineOrders.length === 0 ? (
+                      <p className="text-center font-body text-[#3A3A3A]/70 py-6">No keepsake orders queued yet.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {keepsakePipelineOrders.map((order) => {
+                          const orderId = String(order?.id || '');
+                          const reading = order?.readings || {};
+                          const customerName = [reading?.customers?.first_name, reading?.customers?.last_name]
+                            .filter(Boolean)
+                            .join(' ')
+                            .trim() || 'Unknown Customer';
+                          const petName = reading?.pets?.name || 'Unknown Pet';
+                          const processingKey = orderId || String(order?.reading_id || '');
+                          const draft = keepsakeDrafts[orderId] || {
+                            title: '',
+                            subtitle: '',
+                            overlay_text: '',
+                            back_text: '',
+                            generated_asset_url: String(order?.generated_asset_url || ''),
+                            keepsake_notes: ''
+                          };
+                          return (
+                            <div
+                              key={orderId || `${order?.reading_id}-${order?.keepsake_type}`}
+                              className="border border-[#9DB5A5]/20 rounded-xl p-4"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="font-display text-lg font-semibold text-[#2D3561]">
+                                      {String(order?.keepsake_type || '').replace(/_/g, ' ')}
+                                    </p>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getKeepsakeStatusColor(order?.status || '')}`}>
+                                      {order?.status || 'queued'}
+                                    </span>
+                                  </div>
+                                  <p className="font-body text-sm text-[#3A3A3A]">
+                                    <strong>Customer:</strong> {customerName}
+                                  </p>
+                                  <p className="font-body text-sm text-[#3A3A3A]">
+                                    <strong>Pet:</strong> {petName}
+                                  </p>
+                                  <p className="font-body text-sm text-[#3A3A3A] break-all">
+                                    <strong>Reading ID:</strong> {order?.reading_id || 'N/A'}
+                                  </p>
+                                  {order?.shopify_draft_order_name ? (
+                                    <p className="font-body text-sm text-[#3A3A3A]">
+                                      <strong>Shopify Draft:</strong> {order.shopify_draft_order_name}
+                                    </p>
+                                  ) : null}
+                                  {order?.last_error ? (
+                                    <p className="font-body text-sm text-red-600">
+                                      <strong>Error:</strong> {order.last_error}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <div className="flex flex-col items-end gap-2">
+                                  <p className="font-body text-xs text-[#3A3A3A]/70">
+                                    Updated: {formatDate(order?.updated_at)}
+                                  </p>
+                                  {order?.shopify_invoice_url ? (
+                                    <a
+                                      href={order.shopify_invoice_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-3 py-2 border border-[#2D3561]/30 text-[#2D3561] font-display text-xs font-semibold rounded-lg hover:bg-[#2D3561]/10 transition-colors"
+                                    >
+                                      Open Shopify Invoice
+                                    </a>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRunKeepsakePipeline({ keepsakeOrderId: orderId, action: 'remake', force: true })}
+                                    disabled={Boolean(processingKeepsakes[processingKey])}
+                                    className="px-3 py-2 bg-[#2D3561] text-white font-display text-xs font-semibold rounded-lg hover:bg-[#3D4A7A] transition-colors disabled:opacity-70"
+                                  >
+                                    {processingKeepsakes[processingKey] ? 'Remaking...' : 'Remake'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveKeepsake(orderId)}
+                                    disabled={Boolean(approvingKeepsakes[orderId])}
+                                    className="px-3 py-2 bg-[#D4AF37] text-[#2D3561] font-display text-xs font-semibold rounded-lg hover:bg-[#E5C158] transition-colors disabled:opacity-70"
+                                  >
+                                    {approvingKeepsakes[orderId] ? 'Approving...' : 'Approve for Shopify'}
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="grid md:grid-cols-2 gap-3 mt-4">
+                                <div>
+                                  <label className="font-body text-xs text-[#3A3A3A]/70">Title</label>
+                                  <input
+                                    value={draft.title}
+                                    onChange={(event) => handleKeepsakeDraftChange(orderId, 'title', event.target.value)}
+                                    className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="font-body text-xs text-[#3A3A3A]/70">Subtitle</label>
+                                  <input
+                                    value={draft.subtitle}
+                                    onChange={(event) => handleKeepsakeDraftChange(orderId, 'subtitle', event.target.value)}
+                                    className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="font-body text-xs text-[#3A3A3A]/70">Overlay text</label>
+                                  <textarea
+                                    rows={2}
+                                    value={draft.overlay_text}
+                                    onChange={(event) => handleKeepsakeDraftChange(orderId, 'overlay_text', event.target.value)}
+                                    className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="font-body text-xs text-[#3A3A3A]/70">Back text</label>
+                                  <textarea
+                                    rows={2}
+                                    value={draft.back_text}
+                                    onChange={(event) => handleKeepsakeDraftChange(orderId, 'back_text', event.target.value)}
+                                    className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
+                                  />
+                                </div>
+                                <div className="md:col-span-2">
+                                  <label className="font-body text-xs text-[#3A3A3A]/70">Generated asset URL</label>
+                                  <input
+                                    value={draft.generated_asset_url}
+                                    onChange={(event) => handleKeepsakeDraftChange(orderId, 'generated_asset_url', event.target.value)}
+                                    className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
+                                  />
+                                </div>
+                                <div className="md:col-span-2">
+                                  <label className="font-body text-xs text-[#3A3A3A]/70">Admin keepsake notes</label>
+                                  <textarea
+                                    rows={2}
+                                    value={draft.keepsake_notes}
+                                    onChange={(event) => handleKeepsakeDraftChange(orderId, 'keepsake_notes', event.target.value)}
+                                    className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex justify-end mt-3">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveKeepsakeDraft(orderId)}
+                                  disabled={Boolean(savingKeepsakeDrafts[orderId])}
+                                  className="px-4 py-2 border border-[#2D3561]/30 text-[#2D3561] font-display text-sm font-semibold rounded-lg hover:bg-[#2D3561]/10 transition-colors disabled:opacity-70"
+                                >
+                                  {savingKeepsakeDrafts[orderId] ? 'Saving...' : 'Save Adjustments'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

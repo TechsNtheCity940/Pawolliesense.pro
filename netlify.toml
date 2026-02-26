@@ -29,6 +29,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/contact-submit"
+  to = "/.netlify/functions/contact-submit"
+  status = 200
+
+[[redirects]]
   from = "/api/admin/login"
   to = "/.netlify/functions/admin-login"
   status = 200
@@ -96,6 +101,21 @@
 [[redirects]]
   from = "/api/admin/email-events"
   to = "/.netlify/functions/admin-email-events"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/keepsake-orders"
+  to = "/.netlify/functions/admin-keepsake-orders"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/keepsake-fulfill"
+  to = "/.netlify/functions/admin-keepsake-fulfill"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/keepsake-update"
+  to = "/.netlify/functions/admin-keepsake-update"
   status = 200
 
 [[redirects]]

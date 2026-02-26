@@ -59,6 +59,30 @@ export interface Reading {
   response_email_id?: string | null;
   response_email_provider?: string | null;
   response_email_last_error?: string | null;
+  keepsakes?: string[];
+  keepsake_status?: string | null;
+  keepsake_last_error?: string | null;
+}
+
+export interface KeepsakeOrder {
+  id: string;
+  reading_id: string;
+  customer_id?: string | null;
+  pet_id?: string | null;
+  keepsake_type: string;
+  status: string;
+  quantity?: number;
+  price?: number | null;
+  generated_asset_url?: string | null;
+  shopify_draft_order_id?: string | null;
+  shopify_draft_order_name?: string | null;
+  shopify_invoice_url?: string | null;
+  shopify_order_id?: string | null;
+  last_error?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  completed_at?: string | null;
+  readings?: any;
 }
 
 export interface UploadedFile {
@@ -388,13 +412,20 @@ export async function getFilesByPet(petId: string): Promise<{ data: UploadedFile
 
 // Contact message functions
 export async function createContactMessage(message: ContactMessage): Promise<{ data: ContactMessage | null; error: Error | null }> {
-  const { data, error } = await supabase
-    .from('contact_messages')
-    .insert([message])
-    .select()
-    .single();
-
-  return { data, error: error as Error | null };
+  try {
+    const response = await fetch('/api/contact-submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(message)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to submit contact message.');
+    }
+    return { data: result?.data ?? null, error: null };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
 }
 
 export async function getContactMessages(): Promise<{ data: ContactMessage[] | null; error: Error | null }> {
@@ -420,6 +451,76 @@ export async function getResendEmailEvents(
       throw new Error(result?.error || 'Unable to fetch email events.');
     }
     return { data: result?.data ?? [], error: null, warning: result?.warning || '' };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function getKeepsakeOrders(
+  limit = 200,
+  readingId = ''
+): Promise<{ data: KeepsakeOrder[] | null; error: Error | null }> {
+  try {
+    const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
+    const query = new URLSearchParams({ limit: String(safeLimit) });
+    if (readingId) query.set('readingId', readingId);
+    const response = await fetch(`/api/admin/keepsake-orders?${query.toString()}`, {
+      method: 'GET',
+      credentials: 'include'
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to fetch keepsake orders.');
+    }
+    return { data: result?.data ?? [], error: null };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function runKeepsakeFulfillment(input: {
+  readingId?: string;
+  keepsakeOrderId?: string;
+  force?: boolean;
+  limit?: number;
+  action?: 'generate' | 'remake' | 'approve';
+} = {}): Promise<{ data: any | null; error: Error | null }> {
+  try {
+    const response = await fetch('/api/admin/keepsake-fulfill', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to run keepsake fulfillment.');
+    }
+    return { data: result ?? null, error: null };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function updateKeepsakeOrder(input: {
+  keepsakeOrderId: string;
+  generatedCopy?: Record<string, any>;
+  generatedAssetUrl?: string;
+  keepsakeNotes?: string;
+  status?: string;
+}): Promise<{ data: any | null; error: Error | null }> {
+  try {
+    const response = await fetch('/api/admin/keepsake-update', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to update keepsake order.');
+    }
+    return { data: result?.data ?? null, error: null };
   } catch (error: any) {
     return { data: null, error: error as Error };
   }

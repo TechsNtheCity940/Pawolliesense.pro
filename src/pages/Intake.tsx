@@ -179,37 +179,25 @@ const KEEPSAKES = [
     key: 'memorial_print',
     title: 'Memorial canvas or framed print',
     desc: 'Get your favorite portion of your reading printed on a canvas.',
-    cta: 'Order memorial print'
+    cta: 'Add memorial print'
   },
   {
     key: 'chart_certificate',
     title: 'Star chart certificate',
     desc: 'Your pet\'s birth/star reading turned into a printable certificate (digital + optional print).',
-    cta: 'Request chart certificate'
+    cta: 'Add chart certificate'
   },
   {
     key: 'apparel',
     title: 'Pawollie constellation tee/hoodie',
     desc: 'Name + constellation map or Pawollie Vision portrait printed on apparel.',
-    cta: 'Design apparel'
+    cta: 'Add apparel keepsake'
   },
   {
     key: 'tag_ornament',
     title: 'Keepsake tag / ornament',
     desc: 'Keychain tag or ornament memorializing pets who have crossed over, with name + dates.',
-    cta: 'Create tag or ornament'
-  },
-  {
-    key: 'storybook_pdf',
-    title: 'Storybook keepsake (digital PDF)',
-    desc: 'A personalized, page-ready story built from your submission; print upgrade available.',
-    cta: 'Start storybook'
-  },
-  {
-    key: 'printed_book',
-    title: 'Printed book add-on',
-    desc: 'Once your PDF is locked, we print and ship it; future upgrade to animation available.',
-    cta: 'Add printed book'
+    cta: 'Add tag or ornament'
   }
 ];
 
@@ -265,7 +253,7 @@ const Intake: React.FC = () => {
   const [selectedService, setSelectedService] = useState<string>('');
   const [quickTone, setQuickTone] = useState('calm');
   const [furmilyCount, setFurmilyCount] = useState(2);
-  const [keepsakes] = useState<string[]>([]);
+  const [keepsakes, setKeepsakes] = useState<string[]>([]);
   const [submitStatus, setSubmitStatus] = useState<{
     state: 'idle' | 'submitting' | 'success' | 'error';
     message?: string;
@@ -297,7 +285,6 @@ const Intake: React.FC = () => {
   const isCrafted = selectedServiceMeta?.type === 'crafted';
   const showKeepsakes = Boolean(isCrafted && selectedService !== 'pawmark_post');
   const showCommunity = Boolean(isCrafted && selectedService !== 'pawmark_post');
-  const wantsPrintedBook = keepsakes.includes('printed_book');
   const hostedButtonId = useMemo(
     () => PAYPAL_HOSTED_BUTTON_BY_SERVICE[selectedService] || '',
     [selectedService]
@@ -320,6 +307,7 @@ const Intake: React.FC = () => {
     setIntakeReadyForPayment(false);
     setSavedReadingId('');
     setPaypalHostedError('');
+    setKeepsakes([]);
     setSubmitStatus((prev) => (prev.state === 'submitting' ? prev : { state: 'idle' }));
   }, [selectedService]);
 
@@ -363,6 +351,14 @@ const Intake: React.FC = () => {
     form.requestSubmit();
   };
 
+  const toggleKeepsake = (key: string) => {
+    setKeepsakes((current) => (
+      current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key]
+    ));
+  };
+
   const buildIntakePayload = (form: HTMLFormElement) => {
     const data = new FormData(form);
     const payload: Record<string, string | string[] | boolean> = {};
@@ -380,7 +376,7 @@ const Intake: React.FC = () => {
 
     payload.selected_service = selectedService;
     payload.keepsakes = keepsakes;
-    payload.wagbook_selected = keepsakes.includes('printed_book');
+    payload.wagbook_selected = false;
     payload.estimated_total = String(total);
 
     return payload;
@@ -410,9 +406,26 @@ const Intake: React.FC = () => {
 
   const getSelectedPhotoFiles = (form: HTMLFormElement) => {
     const data = new FormData(form);
-    return data
-      .getAll('photos')
-      .filter((item): item is File => item instanceof File && item.size > 0);
+    const queue: Array<{ file: File; photoType: string }> = [];
+
+    const ownerPhoto = data.get('owner_photo');
+    if (ownerPhoto instanceof File && ownerPhoto.size > 0) {
+      queue.push({ file: ownerPhoto, photoType: 'owner_profile' });
+    }
+
+    data.getAll('pet_photos').forEach((item) => {
+      if (item instanceof File && item.size > 0) {
+        queue.push({ file: item, photoType: 'pet_photo' });
+      }
+    });
+
+    data.getAll('photos').forEach((item) => {
+      if (item instanceof File && item.size > 0) {
+        queue.push({ file: item, photoType: 'intake_photo' });
+      }
+    });
+
+    return queue;
   };
 
   const fileToBase64 = (file: File) =>
@@ -423,23 +436,26 @@ const Intake: React.FC = () => {
       reader.readAsDataURL(file);
     });
 
-  const uploadIntakePhotos = async (readingId: string, files: File[]) => {
-    for (const file of files) {
-      const base64 = await fileToBase64(file);
+  const uploadIntakePhotos = async (
+    readingId: string,
+    files: Array<{ file: File; photoType: string }>
+  ) => {
+    for (const entry of files) {
+      const base64 = await fileToBase64(entry.file);
       const response = await fetch('/api/intake-upload-photo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           readingId,
-          fileName: file.name,
-          fileType: file.type,
-          photoType: 'intake_photo',
+          fileName: entry.file.name,
+          fileType: entry.file.type,
+          photoType: entry.photoType,
           base64
         })
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || `Failed to upload ${file.name}.`);
+        throw new Error(result?.error || `Failed to upload ${entry.file.name}.`);
       }
     }
   };
@@ -792,9 +808,21 @@ const Intake: React.FC = () => {
               </section>
 
               <div className="intake-field">
-                <label>Upload photos (optional but recommended)</label>
+                <label>Guardian photo (optional)</label>
+                <input id="owner_photo" type="file" name="owner_photo" accept="image/*" />
+                <div className="intake-hint">If provided, this image is saved to the customer profile.</div>
+              </div>
+
+              <div className="intake-field">
+                <label>Pet photos (recommended)</label>
+                <input id="pet_photos" type="file" name="pet_photos" multiple accept="image/*" />
+                <div className="intake-hint">Upload clear images for AI generation and keepsake production.</div>
+              </div>
+
+              <div className="intake-field">
+                <label>Additional reference photos (optional)</label>
                 <input id="photos" type="file" name="photos" multiple accept="image/*" />
-                <div className="intake-hint">Photos are automatically named and organized during submission.</div>
+                <div className="intake-hint">Extra references are also attached to this order.</div>
               </div>
 
               {isQuick ? (
@@ -1336,10 +1364,9 @@ const Intake: React.FC = () => {
                         <button
                           type="button"
                           className="intake-keepsake-btn"
-                          disabled
-                          aria-disabled="true"
+                          onClick={() => toggleKeepsake(item.key)}
                         >
-                          Coming Soon
+                          {keepsakes.includes(item.key) ? 'Added' : item.cta}
                         </button>
                       </div>
                     ))}
@@ -1350,48 +1377,183 @@ const Intake: React.FC = () => {
                       <div className="intake-row">
                         <div>
                           <label>Recipient name (shipping label)</label>
-                          <input name="k_ship_name" placeholder="Name for the package" />
+                          <input name="k_ship_name" required={keepsakes.length > 0} placeholder="Name for the package" />
                         </div>
                         <div>
-                          <label>Ship-to country</label>
-                          <input name="k_ship_country" placeholder="US, Canada, etc." />
+                          <label>Recipient email</label>
+                          <input type="email" name="k_ship_email" placeholder="Email for shipment updates" />
+                        </div>
+                      </div>
+                      <div className="intake-row">
+                        <div>
+                          <label>Address line 1</label>
+                          <input name="k_ship_address1" required={keepsakes.length > 0} placeholder="Street address" />
+                        </div>
+                        <div>
+                          <label>Address line 2</label>
+                          <input name="k_ship_address2" placeholder="Apt, suite, unit (optional)" />
+                        </div>
+                      </div>
+                      <div className="intake-row">
+                        <div>
+                          <label>City</label>
+                          <input name="k_ship_city" required={keepsakes.length > 0} placeholder="City" />
+                        </div>
+                        <div>
+                          <label>State / Province</label>
+                          <input name="k_ship_state" required={keepsakes.length > 0} placeholder="State or province" />
+                        </div>
+                      </div>
+                      <div className="intake-row">
+                        <div>
+                          <label>Postal code</label>
+                          <input name="k_ship_postal" required={keepsakes.length > 0} placeholder="ZIP or postal code" />
+                        </div>
+                        <div>
+                          <label>Country</label>
+                          <input name="k_ship_country" required={keepsakes.length > 0} placeholder="US, Canada, etc." />
+                        </div>
+                      </div>
+                      <div className="intake-row">
+                        <div>
+                          <label>Phone (optional)</label>
+                          <input name="k_ship_phone" placeholder="For carrier updates" />
+                        </div>
+                        <div>
+                          <label>Design style preference</label>
+                          <input name="k_style" placeholder="Minimal, celestial, memorial, etc." />
                         </div>
                       </div>
                       <div className="intake-field">
                         <label>Notes for the keepsake(s)</label>
                         <textarea name="k_notes" placeholder="Exact names, dates, preferred quote, layout requests, etc."></textarea>
                       </div>
-                      {wantsPrintedBook ? (
+                      {keepsakes.includes('memorial_print') ? (
                         <div className="intake-field">
-                          <h4>Wag Book details (required for printed book)</h4>
+                          <h4>Memorial print details</h4>
                           <div className="intake-row">
                             <div>
-                              <label>Character names</label>
-                              <input name="wagbook_character_names" required placeholder="Pet + family names to include" />
+                              <label>Custom quote (optional)</label>
+                              <input name="k_quote" placeholder="Text to feature on the print" />
                             </div>
                             <div>
-                              <label>Cover photo URL</label>
-                              <input name="wagbook_cover_image" required placeholder="Link to the cover photo" />
+                              <label>Use reading excerpt</label>
+                              <input name="k_excerpt" placeholder="Paste favorite reading line if desired" />
+                            </div>
+                          </div>
+                          <div className="intake-row">
+                            <div>
+                              <label>Print type</label>
+                              <select name="k_memorial_format" defaultValue="canvas">
+                                <option value="canvas">Canvas print</option>
+                                <option value="framed">Framed print</option>
+                                <option value="digital">Digital file only</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label>Preferred orientation</label>
+                              <select name="k_memorial_orientation" defaultValue="portrait">
+                                <option value="portrait">Portrait</option>
+                                <option value="landscape">Landscape</option>
+                                <option value="square">Square</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                      {keepsakes.includes('chart_certificate') ? (
+                        <div className="intake-field">
+                          <h4>Star chart certificate details</h4>
+                          <div className="intake-row">
+                            <div>
+                              <label>Format</label>
+                              <select name="k_chart_format" defaultValue="digital_printable">
+                                <option value="digital_printable">Digital printable</option>
+                                <option value="printed_certificate">Printed certificate</option>
+                                <option value="both">Both digital + printed</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label>Include constellation style</label>
+                              <select name="k_chart_style" defaultValue="classic">
+                                <option value="classic">Classic certificate</option>
+                                <option value="celestial">Celestial map style</option>
+                                <option value="modern">Modern clean style</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                      {keepsakes.includes('apparel') ? (
+                        <div className="intake-field">
+                          <h4>Apparel details</h4>
+                          <div className="intake-row">
+                            <div>
+                              <label>Item type</label>
+                              <select name="k_apparel_item" defaultValue="tee">
+                                <option value="tee">T-shirt</option>
+                                <option value="hoodie">Hoodie</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label>Size</label>
+                              <select name="k_apparel_size" defaultValue="M">
+                                {['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map((size) => (
+                                  <option key={size} value={size}>{size}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="intake-row">
+                            <div>
+                              <label>Color</label>
+                              <input name="k_apparel_color" placeholder="Black, navy, seafoam, etc." />
+                            </div>
+                            <div>
+                              <label>Art source</label>
+                              <select name="k_apparel_art_source" defaultValue="constellation_map">
+                                <option value="constellation_map">Constellation map</option>
+                                <option value="pawollie_vision">Pawollie Vision portrait</option>
+                              </select>
                             </div>
                           </div>
                           <div className="intake-field">
-                            <label>General story idea</label>
-                            <textarea
-                              name="wagbook_storyline"
-                              required
-                              placeholder="Short plot, themes, or key moments to highlight"
-                            ></textarea>
+                            <label>Text to print (optional)</label>
+                            <input name="k_apparel_text" placeholder="Favorite quote or short line to include" />
                           </div>
-                          <div className="intake-field">
-                            <label>Reference images (comma separated URLs)</label>
-                            <textarea
-                              name="wagbook_reference_images"
-                              placeholder="Links to photos you want used"
-                            ></textarea>
+                        </div>
+                      ) : null}
+                      {keepsakes.includes('tag_ornament') ? (
+                        <div className="intake-field">
+                          <h4>Tag / ornament details</h4>
+                          <div className="intake-row">
+                            <div>
+                              <label>Engraved name</label>
+                              <input name="k_tag_name" placeholder="Pet name for tag/ornament" />
+                            </div>
+                            <div>
+                              <label>Dates</label>
+                              <input name="k_tag_dates" placeholder="Birth + crossing dates" />
+                            </div>
                           </div>
-                          <div className="intake-field">
-                            <label>Upload reference photos (optional)</label>
-                            <input type="file" name="wagbook_reference_files" accept="image/*" multiple />
+                          <div className="intake-row">
+                            <div>
+                              <label>Material</label>
+                              <select name="k_tag_material" defaultValue="metal">
+                                <option value="metal">Metal</option>
+                                <option value="acrylic">Acrylic</option>
+                                <option value="wood">Wood</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label>Shape</label>
+                              <select name="k_tag_shape" defaultValue="round">
+                                <option value="round">Round</option>
+                                <option value="heart">Heart</option>
+                                <option value="bone">Bone</option>
+                                <option value="star">Star</option>
+                              </select>
+                            </div>
                           </div>
                         </div>
                       ) : null}
@@ -1445,6 +1607,10 @@ const Intake: React.FC = () => {
               <h2>Order Summary</h2>
               <div className="sumline"><span>Selected service</span><strong>{summaryService}</strong></div>
               <div className="sumline"><span>Delivery</span><strong>Email</strong></div>
+              <div className="sumline">
+                <span>Keepsakes</span>
+                <strong>{keepsakes.length ? keepsakes.length : 'None'}</strong>
+              </div>
 
               <div className="total">
                 <span>Total</span>
@@ -1465,7 +1631,7 @@ const Intake: React.FC = () => {
 
               {keepsakes.length ? (
                 <div className="notice intake-summary-note">
-                  Keepsake add-ons selected. Final at-cost total may vary by size + shipping; you can confirm costs in your fulfillment step.
+                  Keepsakes selected. After your reading is completed, we auto-generate assets and open Shopify print/ship drafts for fulfillment.
                 </div>
               ) : null}
 

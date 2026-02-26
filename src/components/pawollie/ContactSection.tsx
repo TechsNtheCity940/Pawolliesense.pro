@@ -3,6 +3,8 @@ import { createContactMessage } from '@/lib/database';
 import { pawprintUrl } from '@/lib/brand-assets';
 
 const ContactSection: React.FC = () => {
+  const supportEmail = 'pawolisense@gmail.com';
+  const supportMailto = `mailto:${supportEmail}?subject=${encodeURIComponent('Pawollie Sense Support Request')}`;
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -110,8 +112,8 @@ const ContactSection: React.FC = () => {
                   </div>
                   <div className="ml-4">
                     <h4 className="font-display font-semibold text-white">Email</h4>
-                    <a href="mailto:hello@pawolliesense.com" className="font-body text-white/70 hover:text-[#D4AF37] transition-colors">
-                      hello@pawolliesense.com
+                    <a href={supportMailto} className="font-body text-white/70 hover:text-[#D4AF37] transition-colors">
+                      {supportEmail}
                     </a>
                   </div>
                 </div>
@@ -203,7 +205,14 @@ const ContactSection: React.FC = () => {
               <form onSubmit={handleSubmit} className="space-y-6">
                 {submitError && (
                   <div className="p-4 bg-red-100 border border-red-300 rounded-xl text-red-700 font-body text-sm">
-                    {submitError}
+                    <p>{submitError}</p>
+                    <p className="mt-2">
+                      If this continues, email us directly at{' '}
+                      <a href={supportMailto} className="font-semibold underline">
+                        {supportEmail}
+                      </a>
+                      .
+                    </p>
                   </div>
                 )}
 

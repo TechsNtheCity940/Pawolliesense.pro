@@ -19,6 +19,20 @@ const SERVICE_PRICES = {
   furmily_pack: 79
 };
 
+const NON_WAGBOOK_KEEPSAKE_KEYS = new Set([
+  'memorial_print',
+  'chart_certificate',
+  'apparel',
+  'tag_ornament'
+]);
+
+const KEEPSAKE_PRICES = {
+  memorial_print: 45,
+  chart_certificate: 25,
+  apparel: 35,
+  tag_ornament: 20
+};
+
 function calculateTotalPrice(services, fallback = 0) {
   if (!Array.isArray(services) || !services.length) {
     return Number(fallback) || 0;
@@ -92,6 +106,30 @@ function normalizeServices(payload) {
   return [];
 }
 
+function normalizeKeepsakes(payload) {
+  return normalizeArray(payload?.keepsakes)
+    .map((item) => String(item || '').trim().toLowerCase())
+    .filter((item) => NON_WAGBOOK_KEEPSAKE_KEYS.has(item));
+}
+
+function parseJsonObject(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function mergeAdditionalNotes(existingRaw, nextRaw) {
+  const existing = parseJsonObject(existingRaw);
+  const next = parseJsonObject(nextRaw);
+  const merged = { ...existing, ...next };
+  return Object.keys(merged).length ? JSON.stringify(merged) : null;
+}
+
 async function supabaseFetch(path, { method = 'GET', body } = {}) {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('Supabase credentials are missing.');
@@ -147,6 +185,26 @@ async function insertPet(payload) {
   return Array.isArray(pet) ? pet[0] : pet;
 }
 
+async function findRecentPetByName(customerId, petName) {
+  if (!customerId || !petName) return null;
+  const rows = await supabaseFetch(
+    `/rest/v1/pets?customer_id=eq.${encodeURIComponent(customerId)}&select=*&order=created_at.desc&limit=50`
+  );
+  const normalizedName = String(petName || '').trim().toLowerCase();
+  if (!normalizedName) return null;
+  return (Array.isArray(rows) ? rows : []).find(
+    (row) => String(row?.name || '').trim().toLowerCase() === normalizedName
+  ) || null;
+}
+
+async function patchPet(petId, patch) {
+  const rows = await supabaseFetch(`/rest/v1/pets?id=eq.${encodeURIComponent(petId)}`, {
+    method: 'PATCH',
+    body: patch
+  });
+  return Array.isArray(rows) ? rows[0] : rows;
+}
+
 async function createPet(payload) {
   let nextPayload = { ...payload };
   let lastError = null;
@@ -178,12 +236,152 @@ async function createPet(payload) {
   }
 }
 
-async function createReading(payload) {
+async function findOrCreatePet(payload) {
+  const existing = await findRecentPetByName(payload.customer_id, payload.name);
+  if (!existing) {
+    return createPet(payload);
+  }
+
+  const patch = {};
+  [
+    'species',
+    'breed',
+    'age',
+    'birth_date',
+    'gender',
+    'is_fixed',
+    'is_memorial',
+    'personality_description',
+    'memorial_message'
+  ].forEach((field) => {
+    if (
+      payload[field] !== undefined &&
+      payload[field] !== null &&
+      payload[field] !== '' &&
+      (existing[field] === undefined || existing[field] === null || existing[field] === '')
+    ) {
+      patch[field] = payload[field];
+    }
+  });
+
+  const mergedAdditionalNotes = mergeAdditionalNotes(existing.additional_notes, payload.additional_notes);
+  if (mergedAdditionalNotes && mergedAdditionalNotes !== existing.additional_notes) {
+    patch.additional_notes = mergedAdditionalNotes;
+  }
+
+  if (!Object.keys(patch).length) {
+    return existing;
+  }
+
+  return patchPet(existing.id, patch);
+}
+
+async function insertReading(payload) {
   const reading = await supabaseFetch('/rest/v1/readings', {
     method: 'POST',
     body: payload
   });
   return Array.isArray(reading) ? reading[0] : reading;
+}
+
+async function createReading(payload) {
+  let nextPayload = { ...payload };
+  let lastError = null;
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await insertReading(nextPayload);
+    } catch (error) {
+      lastError = error;
+      const missingColumn = parseMissingColumn(error.message, 'readings');
+      if (!missingColumn || !(missingColumn in nextPayload)) {
+        break;
+      }
+      delete nextPayload[missingColumn];
+    }
+  }
+
+  const fallbackPayload = {
+    customer_id: payload.customer_id,
+    pet_id: payload.pet_id,
+    services: payload.services,
+    consent_acknowledged: payload.consent_acknowledged,
+    notes: payload.notes || null,
+    total_price: payload.total_price
+  };
+
+  try {
+    return await insertReading(fallbackPayload);
+  } catch (error) {
+    const message = error?.message || lastError?.message || 'Unable to create reading record.';
+    throw new Error(message);
+  }
+}
+
+async function createKeepsakeOrders({ reading, customer, pet, keepsakes, services, extraNotes }) {
+  if (!reading?.id || !Array.isArray(keepsakes) || !keepsakes.length) {
+    return [];
+  }
+
+  const existingRows = await supabaseFetch(
+    `/rest/v1/keepsake_orders?reading_id=eq.${encodeURIComponent(reading.id)}&select=id,keepsake_type`
+  );
+  const existingTypes = new Set(
+    (Array.isArray(existingRows) ? existingRows : []).map((row) => String(row?.keepsake_type || '').toLowerCase())
+  );
+
+  const toInsert = keepsakes
+    .filter((type) => !existingTypes.has(type))
+    .map((type) => ({
+      reading_id: reading.id,
+      customer_id: customer?.id || null,
+      pet_id: pet?.id || null,
+      keepsake_type: type,
+      status: 'queued',
+      quantity: 1,
+      price: KEEPSAKE_PRICES[type] || null,
+      service_context: Array.isArray(services) ? services : [],
+      customization: {
+        keepsake_notes: extraNotes.keepsake_notes || '',
+        quote: extraNotes.k_quote || '',
+        excerpt: extraNotes.k_excerpt || '',
+        design_style: extraNotes.k_style || '',
+        memorial_format: extraNotes.k_memorial_format || '',
+        memorial_orientation: extraNotes.k_memorial_orientation || '',
+        chart_format: extraNotes.k_chart_format || '',
+        chart_style: extraNotes.k_chart_style || '',
+        apparel_item: extraNotes.k_apparel_item || '',
+        apparel_size: extraNotes.k_apparel_size || '',
+        apparel_color: extraNotes.k_apparel_color || '',
+        apparel_art_source: extraNotes.k_apparel_art_source || '',
+        apparel_text: extraNotes.k_apparel_text || '',
+        tag_name: extraNotes.k_tag_name || '',
+        tag_dates: extraNotes.k_tag_dates || '',
+        tag_material: extraNotes.k_tag_material || '',
+        tag_shape: extraNotes.k_tag_shape || '',
+        shipping: {
+          name: extraNotes.k_ship_name || '',
+          email: extraNotes.k_ship_email || '',
+          phone: extraNotes.k_ship_phone || '',
+          address1: extraNotes.k_ship_address1 || '',
+          address2: extraNotes.k_ship_address2 || '',
+          city: extraNotes.k_ship_city || '',
+          state: extraNotes.k_ship_state || '',
+          postal: extraNotes.k_ship_postal || '',
+          country: extraNotes.k_ship_country || ''
+        }
+      }
+    }));
+
+  if (!toInsert.length) {
+    return Array.isArray(existingRows) ? existingRows : [];
+  }
+
+  const inserted = await supabaseFetch('/rest/v1/keepsake_orders', {
+    method: 'POST',
+    body: toInsert
+  });
+  return Array.isArray(inserted) ? inserted : [inserted];
 }
 
 exports.handler = async function handler(event) {
@@ -197,6 +395,7 @@ exports.handler = async function handler(event) {
     const email = payload.email || '';
     const petName = payload.pet_name || payload.petName || '';
     const services = normalizeServices(payload);
+    const keepsakes = normalizeKeepsakes(payload);
     const totalPrice = calculateTotalPrice(services, payload.estimated_total);
 
     if (!email || !petName || !guardianName || !services.length) {
@@ -283,11 +482,36 @@ exports.handler = async function handler(event) {
       allpaws_notes: payload.allpaws_notes || '',
       furmily_count: payload.furmily_count || '',
       furmily_selections: furmilySelections,
+      k_ship_name: payload.k_ship_name || '',
+      k_ship_email: payload.k_ship_email || '',
+      k_ship_phone: payload.k_ship_phone || '',
+      k_ship_address1: payload.k_ship_address1 || '',
+      k_ship_address2: payload.k_ship_address2 || '',
+      k_ship_city: payload.k_ship_city || '',
+      k_ship_state: payload.k_ship_state || '',
+      k_ship_postal: payload.k_ship_postal || '',
+      k_ship_country: payload.k_ship_country || '',
+      k_quote: payload.k_quote || '',
+      k_excerpt: payload.k_excerpt || '',
+      k_style: payload.k_style || '',
+      k_memorial_format: payload.k_memorial_format || '',
+      k_memorial_orientation: payload.k_memorial_orientation || '',
+      k_chart_format: payload.k_chart_format || '',
+      k_chart_style: payload.k_chart_style || '',
+      k_apparel_item: payload.k_apparel_item || '',
+      k_apparel_size: payload.k_apparel_size || '',
+      k_apparel_color: payload.k_apparel_color || '',
+      k_apparel_art_source: payload.k_apparel_art_source || '',
+      k_apparel_text: payload.k_apparel_text || '',
+      k_tag_name: payload.k_tag_name || '',
+      k_tag_dates: payload.k_tag_dates || '',
+      k_tag_material: payload.k_tag_material || '',
+      k_tag_shape: payload.k_tag_shape || '',
       selected_services: services,
-      keepsakes: normalizeArray(payload.keepsakes)
+      keepsakes
     };
 
-    const pet = await createPet({
+    const pet = await findOrCreatePet({
       customer_id: customer.id,
       name: petName,
       species: payload.species || payload.pet_species || payload.pet_type || null,
@@ -302,7 +526,6 @@ exports.handler = async function handler(event) {
       additional_notes: Object.values(extraNotes).some(Boolean) ? JSON.stringify(extraNotes) : null
     });
 
-    const keepsakes = normalizeArray(payload.keepsakes);
     const wagbookSelected = toBoolean(payload.wagbook_selected) || keepsakes.includes('printed_book');
     const wagbookReferenceImages = [
       ...normalizeArray(payload.wagbook_reference_images),
@@ -321,8 +544,30 @@ exports.handler = async function handler(event) {
       wagbook_storyline: payload.wagbook_storyline || null,
       wagbook_reference_images: wagbookSelected ? wagbookReferenceImages : [],
       wagbook_cover_image: payload.wagbook_cover_image || null,
-      wagbook_price: wagbookSelected ? WAGBOOK_PRICE : 0
+      wagbook_price: wagbookSelected ? WAGBOOK_PRICE : 0,
+      keepsakes,
+      keepsake_status: keepsakes.length ? 'queued' : 'none',
+      keepsake_last_error: null
     });
+
+    if (keepsakes.length) {
+      try {
+        await createKeepsakeOrders({ reading, customer, pet, keepsakes, services, extraNotes });
+      } catch (keepsakeError) {
+        console.warn('Unable to queue keepsake orders', keepsakeError.message || keepsakeError);
+        try {
+          await supabaseFetch(`/rest/v1/readings?id=eq.${encodeURIComponent(reading.id)}`, {
+            method: 'PATCH',
+            body: {
+              keepsake_status: 'failed',
+              keepsake_last_error: keepsakeError.message || 'Unable to queue keepsake order.'
+            }
+          });
+        } catch (patchError) {
+          console.warn('Unable to persist keepsake queue error', patchError.message || patchError);
+        }
+      }
+    }
 
     try {
       await upsertResendContact({
