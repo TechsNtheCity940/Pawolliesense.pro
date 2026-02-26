@@ -27,10 +27,15 @@ const NON_WAGBOOK_KEEPSAKE_KEYS = new Set([
 ]);
 
 const KEEPSAKE_PRICES = {
-  memorial_print: 45,
-  chart_certificate: 25,
-  apparel: 35,
-  tag_ornament: 20
+  memorial_print: 79,
+  chart_certificate: 39,
+  apparel: 44,
+  tag_ornament: 29
+};
+
+const APPAREL_PRICES = {
+  tee: 44,
+  hoodie: 69
 };
 
 function calculateTotalPrice(services, fallback = 0) {
@@ -110,6 +115,17 @@ function normalizeKeepsakes(payload) {
   return normalizeArray(payload?.keepsakes)
     .map((item) => String(item || '').trim().toLowerCase())
     .filter((item) => NON_WAGBOOK_KEEPSAKE_KEYS.has(item));
+}
+
+function getKeepsakePrice(type, extraNotes = {}) {
+  if (type !== 'apparel') {
+    return KEEPSAKE_PRICES[type] || null;
+  }
+  const apparelItem = String(extraNotes.k_apparel_item || '').trim().toLowerCase();
+  if (apparelItem === 'hoodie') {
+    return APPAREL_PRICES.hoodie;
+  }
+  return APPAREL_PRICES.tee;
 }
 
 function parseJsonObject(raw) {
@@ -339,7 +355,7 @@ async function createKeepsakeOrders({ reading, customer, pet, keepsakes, service
       keepsake_type: type,
       status: 'queued',
       quantity: 1,
-      price: KEEPSAKE_PRICES[type] || null,
+      price: getKeepsakePrice(type, extraNotes),
       service_context: Array.isArray(services) ? services : [],
       customization: {
         keepsake_notes: extraNotes.keepsake_notes || '',

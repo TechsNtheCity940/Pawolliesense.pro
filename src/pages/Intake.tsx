@@ -179,27 +179,45 @@ const KEEPSAKES = [
     key: 'memorial_print',
     title: 'Memorial canvas or framed print',
     desc: 'Get your favorite portion of your reading printed on a canvas.',
-    cta: 'Add memorial print'
+    cta: 'Add memorial print',
+    priceLabel: '$79'
   },
   {
     key: 'chart_certificate',
     title: 'Star chart certificate',
     desc: 'Your pet\'s birth/star reading turned into a printable certificate (digital + optional print).',
-    cta: 'Add chart certificate'
+    cta: 'Add chart certificate',
+    priceLabel: '$39'
   },
   {
     key: 'apparel',
     title: 'Pawollie constellation tee/hoodie',
-    desc: 'Name + constellation map or Pawollie Vision portrait printed on apparel.',
-    cta: 'Add apparel keepsake'
+    desc: 'Name + constellation map or Pawollie Vision portrait printed on apparel (tee: $44, hoodie: $69).',
+    cta: 'Add apparel keepsake',
+    priceLabel: '$44+'
   },
   {
     key: 'tag_ornament',
     title: 'Keepsake tag / ornament',
     desc: 'Keychain tag or ornament memorializing pets who have crossed over, with name + dates.',
-    cta: 'Add tag or ornament'
+    cta: 'Add tag or ornament',
+    priceLabel: '$29'
   }
 ];
+
+const KEEPSAKE_PRICES: Record<string, number> = {
+  memorial_print: 79,
+  chart_certificate: 39,
+  apparel: 44,
+  tag_ornament: 29
+};
+
+const APPAREL_PRICES = {
+  tee: 44,
+  hoodie: 69
+};
+
+const VALID_KEEPSAKE_KEYS = new Set(Object.keys(KEEPSAKE_PRICES));
 
 const PAYPAL_HOSTED_SDK_SRC = 'https://www.paypal.com/sdk/js?client-id=BAAp8LDFJ3ShdhXqqjkmc47raYL4GHUAebnE98zbMmm68og4ZWfOMgOnWxK8r_fIx4rz3UTPaVMI6l2rGk&components=hosted-buttons&enable-funding=venmo&currency=USD';
 
@@ -254,6 +272,7 @@ const Intake: React.FC = () => {
   const [quickTone, setQuickTone] = useState('calm');
   const [furmilyCount, setFurmilyCount] = useState(2);
   const [keepsakes, setKeepsakes] = useState<string[]>([]);
+  const [apparelItemType, setApparelItemType] = useState<'tee' | 'hoodie'>('tee');
   const [submitStatus, setSubmitStatus] = useState<{
     state: 'idle' | 'submitting' | 'success' | 'error';
     message?: string;
@@ -269,6 +288,16 @@ const Intake: React.FC = () => {
   );
 
   const total = useMemo(() => selectedServiceMeta?.price ?? 0, [selectedServiceMeta]);
+  const keepsakeTotal = useMemo(
+    () => keepsakes.reduce((sum, key) => {
+      if (key === 'apparel') {
+        return sum + (apparelItemType === 'hoodie' ? APPAREL_PRICES.hoodie : APPAREL_PRICES.tee);
+      }
+      return sum + (KEEPSAKE_PRICES[key] || 0);
+    }, 0),
+    [keepsakes, apparelItemType]
+  );
+  const grandTotal = total + keepsakeTotal;
 
   const summaryService = useMemo(
     () => selectedServiceMeta?.name ?? 'None selected',
@@ -304,10 +333,30 @@ const Intake: React.FC = () => {
   }, [location.search]);
 
   useEffect(() => {
+    if (!selectedService) return;
+    const params = new URLSearchParams(location.search);
+    const keepsakeParams = params.getAll('keepsake')
+      .map((value) => String(value || '').trim().toLowerCase())
+      .filter((value) => VALID_KEEPSAKE_KEYS.has(value));
+    if (!keepsakeParams.length) return;
+
+    const selectedServiceDef = SERVICES.find((item) => item.key === selectedService);
+    const canAttachKeepsakes = Boolean(selectedServiceDef?.type === 'crafted' && selectedService !== 'pawmark_post');
+    if (!canAttachKeepsakes) return;
+
+    setKeepsakes(Array.from(new Set(keepsakeParams)));
+    const apparelQuery = String(params.get('apparel') || '').trim().toLowerCase();
+    if (apparelQuery === 'hoodie') {
+      setApparelItemType('hoodie');
+    }
+  }, [location.search, selectedService]);
+
+  useEffect(() => {
     setIntakeReadyForPayment(false);
     setSavedReadingId('');
     setPaypalHostedError('');
     setKeepsakes([]);
+    setApparelItemType('tee');
     setSubmitStatus((prev) => (prev.state === 'submitting' ? prev : { state: 'idle' }));
   }, [selectedService]);
 
@@ -1361,6 +1410,7 @@ const Intake: React.FC = () => {
                       <div key={item.key} className={`intake-keepsake-card${keepsakes.includes(item.key) ? ' selected' : ''}`}>
                         <h4>{item.title}</h4>
                         <p className="intake-keepsake-desc">{item.desc}</p>
+                        <div className="intake-keepsake-meta">Price: {item.priceLabel}</div>
                         <button
                           type="button"
                           className="intake-keepsake-btn"
@@ -1490,7 +1540,11 @@ const Intake: React.FC = () => {
                           <div className="intake-row">
                             <div>
                               <label>Item type</label>
-                              <select name="k_apparel_item" defaultValue="tee">
+                              <select
+                                name="k_apparel_item"
+                                value={apparelItemType}
+                                onChange={(event) => setApparelItemType(event.target.value === 'hoodie' ? 'hoodie' : 'tee')}
+                              >
                                 <option value="tee">T-shirt</option>
                                 <option value="hoodie">Hoodie</option>
                               </select>
@@ -1607,14 +1661,19 @@ const Intake: React.FC = () => {
               <h2>Order Summary</h2>
               <div className="sumline"><span>Selected service</span><strong>{summaryService}</strong></div>
               <div className="sumline"><span>Delivery</span><strong>Email</strong></div>
+              <div className="sumline"><span>Service total (due now)</span><strong>${total.toFixed(2)}</strong></div>
               <div className="sumline">
                 <span>Keepsakes</span>
                 <strong>{keepsakes.length ? keepsakes.length : 'None'}</strong>
               </div>
+              <div className="sumline">
+                <span>Keepsake add-ons</span>
+                <strong>{keepsakes.length ? `$${keepsakeTotal.toFixed(2)}` : 'None'}</strong>
+              </div>
 
               <div className="total">
-                <span>Total</span>
-                <strong>${total.toFixed(2)}</strong>
+                <span>Estimated total</span>
+                <strong>${grandTotal.toFixed(2)}</strong>
               </div>
 
               {isInstant ? (
@@ -1631,7 +1690,7 @@ const Intake: React.FC = () => {
 
               {keepsakes.length ? (
                 <div className="notice intake-summary-note">
-                  Keepsakes selected. After your reading is completed, we auto-generate assets and open Shopify print/ship drafts for fulfillment.
+                  Keepsakes are fulfilled through Shopify draft orders after admin approval. Final keepsake invoice is sent separately.
                 </div>
               ) : null}
 

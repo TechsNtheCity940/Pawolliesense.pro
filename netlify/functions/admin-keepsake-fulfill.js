@@ -13,22 +13,22 @@ const KEEP_TYPES = {
   memorial_print: {
     label: 'Memorial print',
     variantEnv: 'SHOPIFY_VARIANT_ID_MEMORIAL_PRINT',
-    price: 45
+    price: 79
   },
   chart_certificate: {
     label: 'Star chart certificate',
     variantEnv: 'SHOPIFY_VARIANT_ID_CHART_CERTIFICATE',
-    price: 25
+    price: 39
   },
   apparel: {
     label: 'Pawollie constellation apparel',
     variantEnv: 'SHOPIFY_VARIANT_ID_APPAREL',
-    price: 35
+    price: 44
   },
   tag_ornament: {
     label: 'Keepsake tag / ornament',
     variantEnv: 'SHOPIFY_VARIANT_ID_TAG_ORNAMENT',
-    price: 20
+    price: 29
   }
 };
 
@@ -531,7 +531,20 @@ const createShopifyDraftOrder = async ({ order, reading, extraNotes, assetUrl, c
       { name: 'Pet Name', value: safeText(reading?.pets?.name) },
       { name: 'Overlay Text', value: safeText(copy?.overlay_text) },
       { name: 'Generated Asset URL', value: safeText(assetUrl) },
-      { name: 'Customer Notes', value: safeText(extraNotes?.keepsake_notes) }
+      { name: 'Customer Notes', value: safeText(extraNotes?.keepsake_notes) },
+      { name: 'Memorial Format', value: safeText(extraNotes?.k_memorial_format) },
+      { name: 'Memorial Orientation', value: safeText(extraNotes?.k_memorial_orientation) },
+      { name: 'Chart Format', value: safeText(extraNotes?.k_chart_format) },
+      { name: 'Chart Style', value: safeText(extraNotes?.k_chart_style) },
+      { name: 'Apparel Item', value: safeText(extraNotes?.k_apparel_item) },
+      { name: 'Apparel Size', value: safeText(extraNotes?.k_apparel_size) },
+      { name: 'Apparel Color', value: safeText(extraNotes?.k_apparel_color) },
+      { name: 'Apparel Art Source', value: safeText(extraNotes?.k_apparel_art_source) },
+      { name: 'Apparel Text', value: safeText(extraNotes?.k_apparel_text) },
+      { name: 'Tag Name', value: safeText(extraNotes?.k_tag_name) },
+      { name: 'Tag Dates', value: safeText(extraNotes?.k_tag_dates) },
+      { name: 'Tag Material', value: safeText(extraNotes?.k_tag_material) },
+      { name: 'Tag Shape', value: safeText(extraNotes?.k_tag_shape) }
     ].filter((item) => item.value)
   };
 
