@@ -35,6 +35,13 @@ const KEEP_TYPES = {
 const FINISHED_STATUSES = new Set(['shopify_draft_created', 'submitted', 'fulfilled', 'completed']);
 const GENERATE_STATUSES = new Set(['queued', 'failed', 'processing', 'asset_ready', 'awaiting_approval']);
 const APPROVE_STATUSES = new Set(['awaiting_approval', 'asset_ready', 'shopify_draft_created', 'submitted']);
+const SHOPIFY_TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
+const DEFAULT_SHOPIFY_TOKEN_TTL_SEC = 24 * 60 * 60;
+
+let shopifyTokenCache = {
+  token: '',
+  expiresAt: 0
+};
 
 const jsonResponse = (statusCode, body) => ({
   statusCode,
@@ -151,11 +158,69 @@ const resolveShopifyDomain = () => {
   return host.includes('.') ? host : `${host}.myshopify.com`;
 };
 
+const getShopifyAdminToken = async (domain, { forceRefresh = false } = {}) => {
+  const clientId = safeText(process.env.SHOPIFY_CLIENT_ID);
+  const clientSecret = safeText(process.env.SHOPIFY_CLIENT_SECRET);
+  const staticToken = safeText(process.env.SHOPIFY_ADMIN_API_TOKEN);
+
+  if (!clientId || !clientSecret) {
+    if (staticToken) return staticToken;
+    throw new Error(
+      'Missing Shopify credentials. Set SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (recommended) or SHOPIFY_ADMIN_API_TOKEN.'
+    );
+  }
+
+  if (!forceRefresh && shopifyTokenCache.token && shopifyTokenCache.expiresAt - Date.now() > SHOPIFY_TOKEN_REFRESH_BUFFER_MS) {
+    return shopifyTokenCache.token;
+  }
+
+  const response = await fetch(`https://${domain}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: 'client_credentials'
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message = data?.error || data?.message || JSON.stringify(data) || 'Unable to retrieve Shopify access token.';
+    if (staticToken) {
+      console.warn('Shopify client-credentials token request failed; falling back to static token.', message);
+      return staticToken;
+    }
+    throw new Error(`Shopify token request failed: ${message}`);
+  }
+
+  const token = safeText(data?.access_token || data?.token);
+  if (!token) {
+    if (staticToken) {
+      console.warn('Shopify token response missing access token; falling back to static token.');
+      return staticToken;
+    }
+    throw new Error('Shopify token response missing access token.');
+  }
+
+  const ttlSecondsRaw = Number(data?.expires_in || data?.expires || DEFAULT_SHOPIFY_TOKEN_TTL_SEC);
+  const ttlSeconds = Number.isFinite(ttlSecondsRaw) && ttlSecondsRaw > 0
+    ? ttlSecondsRaw
+    : DEFAULT_SHOPIFY_TOKEN_TTL_SEC;
+
+  shopifyTokenCache = {
+    token,
+    expiresAt: Date.now() + ttlSeconds * 1000
+  };
+
+  return token;
+};
+
 const shopifyRequest = async ({ path, method = 'GET', body } = {}) => {
   const domain = resolveShopifyDomain();
-  const token = requiredEnv('SHOPIFY_ADMIN_API_TOKEN');
   const version = safeText(process.env.SHOPIFY_API_VERSION, '2025-01');
-  const response = await fetch(`https://${domain}/admin/api/${version}${path}`, {
+
+  const runRequest = async (token) => fetch(`https://${domain}/admin/api/${version}${path}`, {
     method,
     headers: {
       'X-Shopify-Access-Token': token,
@@ -163,7 +228,17 @@ const shopifyRequest = async ({ path, method = 'GET', body } = {}) => {
     },
     body: body ? JSON.stringify(body) : undefined
   });
-  const data = await response.json().catch(() => ({}));
+
+  let token = await getShopifyAdminToken(domain);
+  let response = await runRequest(token);
+  let data = await response.json().catch(() => ({}));
+
+  if (response.status === 401 && safeText(process.env.SHOPIFY_CLIENT_ID) && safeText(process.env.SHOPIFY_CLIENT_SECRET)) {
+    token = await getShopifyAdminToken(domain, { forceRefresh: true });
+    response = await runRequest(token);
+    data = await response.json().catch(() => ({}));
+  }
+
   if (!response.ok) {
     const message = data?.errors
       ? JSON.stringify(data.errors)
