@@ -136,8 +136,23 @@ const splitName = (fullName = '') => {
   };
 };
 
+const resolveShopifyDomain = () => {
+  const raw = safeText(process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_NAME);
+  if (!raw) {
+    throw new Error('Missing SHOPIFY_SHOP_DOMAIN (for example: pawollisense.myshopify.com).');
+  }
+
+  const withoutProtocol = raw.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  const host = withoutProtocol.split('/')[0];
+  if (!host) {
+    throw new Error('Invalid Shopify store domain. Use pawollisense.myshopify.com format.');
+  }
+
+  return host.includes('.') ? host : `${host}.myshopify.com`;
+};
+
 const shopifyRequest = async ({ path, method = 'GET', body } = {}) => {
-  const domain = safeText(requiredEnv('SHOPIFY_SHOP_DOMAIN')).replace(/^https?:\/\//i, '');
+  const domain = resolveShopifyDomain();
   const token = requiredEnv('SHOPIFY_ADMIN_API_TOKEN');
   const version = safeText(process.env.SHOPIFY_API_VERSION, '2025-01');
   const response = await fetch(`https://${domain}/admin/api/${version}${path}`, {
