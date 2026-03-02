@@ -390,6 +390,7 @@ const buildKeepsakePrompt = ({ order, reading, extraNotes, sourceImages }) => {
   const requestNotes = safeText(extraNotes?.keepsake_notes || order?.customization?.keepsake_notes || '');
   const quote = safeText(extraNotes?.k_quote || order?.customization?.quote || '');
   const excerpt = safeText(extraNotes?.k_excerpt || order?.customization?.excerpt || '');
+  const requestDetails = getKeepsakeRequestDetails(extraNotes);
 
   return [
     'You create print-ready keepsake copy for Pawollie Sense.',
@@ -402,6 +403,7 @@ const buildKeepsakePrompt = ({ order, reading, extraNotes, sourceImages }) => {
     quote ? `Customer quote: ${quote}` : null,
     excerpt ? `Favorite excerpt: ${excerpt}` : null,
     requestNotes ? `Additional keepsake notes: ${requestNotes}` : null,
+    requestDetails.length ? `Intake details: ${requestDetails.join(' | ')}` : null,
     sourceImages.length ? `Reference images: ${sourceImages.slice(0, 5).join(', ')}` : null,
     readingText ? `Reading text: ${readingText}` : 'Reading text unavailable.'
   ].filter(Boolean).join('\n');
@@ -413,6 +415,7 @@ const buildImagePrompt = ({ order, reading, copy, extraNotes, sourceImages }) =>
   const overlayText = safeText(copy?.overlay_text || copy?.subtitle || copy?.title);
   const style = safeText(extraNotes?.k_style || copy?.style_hint || 'celestial, clean, premium');
   const notes = safeText(extraNotes?.keepsake_notes);
+  const requestDetails = getKeepsakeRequestDetails(extraNotes);
   const sourceHint = sourceImages.length
     ? `Reference these image URLs for likeness and color cues: ${sourceImages.slice(0, 6).join(', ')}.`
     : '';
@@ -423,6 +426,7 @@ const buildImagePrompt = ({ order, reading, copy, extraNotes, sourceImages }) =>
     overlayText ? `Include this exact short text: "${overlayText}".` : '',
     `Visual style: ${style}. Keep composition clean, high contrast, premium typography.`,
     notes ? `Customer notes: ${notes}.` : '',
+    requestDetails.length ? `Intake requirements: ${requestDetails.join('; ')}.` : '',
     sourceHint,
     'No logos or watermarks. High-quality, production-ready, 1:1 composition.'
   ].filter(Boolean).join(' ');
@@ -610,23 +614,28 @@ const createShopifyDraftOrder = async ({ order, reading, extraNotes, assetUrl, c
     throw new Error(`Missing Shopify variant mapping (${keepMeta.variantEnv}).`);
   }
 
-  const fullName = safeText(extraNotes?.k_ship_name) || `${safeText(reading?.customers?.first_name)} ${safeText(reading?.customers?.last_name)}`.trim();
+  const intakeShipping = getShippingFromIntake(extraNotes, order);
+  const fullName = intakeShipping.name || `${safeText(reading?.customers?.first_name)} ${safeText(reading?.customers?.last_name)}`.trim();
   const { firstName, lastName } = splitName(fullName);
-  const email = safeText(extraNotes?.k_ship_email) || safeText(reading?.customers?.email);
-  const shippingAddress1 = safeText(extraNotes?.k_ship_address1);
-  const shippingAddress = shippingAddress1
-    ? {
-        first_name: firstName,
-        last_name: lastName,
-        address1: shippingAddress1,
-        address2: safeText(extraNotes?.k_ship_address2),
-        city: safeText(extraNotes?.k_ship_city),
-        province: safeText(extraNotes?.k_ship_state),
-        zip: safeText(extraNotes?.k_ship_postal),
-        country: safeText(extraNotes?.k_ship_country),
-        phone: safeText(extraNotes?.k_ship_phone)
-      }
-    : undefined;
+  const email = intakeShipping.email || safeText(reading?.customers?.email);
+
+  const requiredShipping = ['address1', 'city', 'state', 'postal', 'country'];
+  const missingShippingFields = requiredShipping.filter((field) => !safeText(intakeShipping[field]));
+  if (missingShippingFields.length) {
+    throw new Error(`Missing intake shipping fields: ${missingShippingFields.join(', ')}.`);
+  }
+
+  const shippingAddress = {
+    first_name: firstName,
+    last_name: lastName,
+    address1: intakeShipping.address1,
+    address2: intakeShipping.address2,
+    city: intakeShipping.city,
+    province: intakeShipping.state,
+    zip: intakeShipping.postal,
+    country: intakeShipping.country,
+    phone: intakeShipping.phone
+  };
 
   const lineItem = {
     variant_id: variantId,
@@ -720,6 +729,42 @@ const getOrderContext = ({ order, reading }) => {
   };
 };
 
+const getShippingFromIntake = (extraNotes = {}, order = null) => {
+  const customization = parseJsonValue(order?.customization, {});
+  const shipping = customization?.shipping || {};
+  return {
+    name: safeText(extraNotes?.k_ship_name || shipping?.name),
+    email: safeText(extraNotes?.k_ship_email || shipping?.email),
+    phone: safeText(extraNotes?.k_ship_phone || shipping?.phone),
+    address1: safeText(extraNotes?.k_ship_address1 || shipping?.address1),
+    address2: safeText(extraNotes?.k_ship_address2 || shipping?.address2),
+    city: safeText(extraNotes?.k_ship_city || shipping?.city),
+    state: safeText(extraNotes?.k_ship_state || shipping?.state),
+    postal: safeText(extraNotes?.k_ship_postal || shipping?.postal),
+    country: safeText(extraNotes?.k_ship_country || shipping?.country)
+  };
+};
+
+const getKeepsakeRequestDetails = (extraNotes = {}) => {
+  const details = [
+    safeText(extraNotes?.k_style) ? `Style: ${safeText(extraNotes?.k_style)}` : '',
+    safeText(extraNotes?.k_memorial_format) ? `Memorial format: ${safeText(extraNotes?.k_memorial_format)}` : '',
+    safeText(extraNotes?.k_memorial_orientation) ? `Memorial orientation: ${safeText(extraNotes?.k_memorial_orientation)}` : '',
+    safeText(extraNotes?.k_chart_format) ? `Chart format: ${safeText(extraNotes?.k_chart_format)}` : '',
+    safeText(extraNotes?.k_chart_style) ? `Chart style: ${safeText(extraNotes?.k_chart_style)}` : '',
+    safeText(extraNotes?.k_apparel_item) ? `Apparel item: ${safeText(extraNotes?.k_apparel_item)}` : '',
+    safeText(extraNotes?.k_apparel_size) ? `Apparel size: ${safeText(extraNotes?.k_apparel_size)}` : '',
+    safeText(extraNotes?.k_apparel_color) ? `Apparel color: ${safeText(extraNotes?.k_apparel_color)}` : '',
+    safeText(extraNotes?.k_apparel_art_source) ? `Apparel art source: ${safeText(extraNotes?.k_apparel_art_source)}` : '',
+    safeText(extraNotes?.k_apparel_text) ? `Apparel text: ${safeText(extraNotes?.k_apparel_text)}` : '',
+    safeText(extraNotes?.k_tag_name) ? `Tag name: ${safeText(extraNotes?.k_tag_name)}` : '',
+    safeText(extraNotes?.k_tag_dates) ? `Tag dates: ${safeText(extraNotes?.k_tag_dates)}` : '',
+    safeText(extraNotes?.k_tag_material) ? `Tag material: ${safeText(extraNotes?.k_tag_material)}` : '',
+    safeText(extraNotes?.k_tag_shape) ? `Tag shape: ${safeText(extraNotes?.k_tag_shape)}` : ''
+  ].filter(Boolean);
+  return details;
+};
+
 const isDigitalOnlyKeepsake = ({ order, extraNotes }) => {
   const type = safeText(order?.keepsake_type).toLowerCase();
   if (!type) return false;
@@ -738,9 +783,8 @@ const isDigitalOnlyKeepsake = ({ order, extraNotes }) => {
 };
 
 const sendDigitalKeepsakeEmail = async ({ order, reading, extraNotes, copy, assetUrl }) => {
-  const to =
-    safeText(extraNotes?.k_ship_email) ||
-    safeText(reading?.customers?.email);
+  const intakeShipping = getShippingFromIntake(extraNotes, order);
+  const to = intakeShipping.email || safeText(reading?.customers?.email);
   if (!to) {
     throw new Error('Missing customer email for digital keepsake delivery.');
   }
