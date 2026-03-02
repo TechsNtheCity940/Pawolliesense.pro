@@ -410,7 +410,9 @@ const Admin: React.FC = () => {
     switch (String(status || '').toLowerCase()) {
       case 'queued': return 'bg-yellow-100 text-yellow-800';
       case 'processing': return 'bg-blue-100 text-blue-800';
+      case 'awaiting_approval': return 'bg-indigo-100 text-indigo-800';
       case 'shopify_draft_created': return 'bg-green-100 text-green-800';
+      case 'completed': return 'bg-green-100 text-green-800';
       case 'submitted': return 'bg-green-100 text-green-800';
       case 'fulfilled': return 'bg-green-100 text-green-800';
       case 'failed': return 'bg-red-100 text-red-800';
@@ -1642,7 +1644,7 @@ const Admin: React.FC = () => {
                       <div>
                         <h3 className="font-display text-xl font-semibold text-[#2D3561]">Shopify Keepsake Pipeline</h3>
                         <p className="font-body text-sm text-[#3A3A3A]/70">
-                          Generates keepsake assets and creates Shopify draft print/ship orders.
+                          Generates keepsake assets, then either emails digital-only orders or creates Shopify print/ship drafts.
                         </p>
                       </div>
                       <button

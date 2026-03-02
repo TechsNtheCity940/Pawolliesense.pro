@@ -4,6 +4,7 @@ const {
   verifyToken,
   getCredentials
 } = require('./_adminAuth');
+const { sendCustomEmail } = require('./_responseEmail');
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const OPENAI_IMAGES_URL = 'https://api.openai.com/v1/images/generations';
@@ -66,6 +67,14 @@ const normalizeTag = (value, maxLength = 40) =>
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, maxLength);
+
+const escapeHtml = (value) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const supabaseRequest = async ({
   path,
@@ -711,6 +720,98 @@ const getOrderContext = ({ order, reading }) => {
   };
 };
 
+const isDigitalOnlyKeepsake = ({ order, extraNotes }) => {
+  const type = safeText(order?.keepsake_type).toLowerCase();
+  if (!type) return false;
+
+  if (type === 'chart_certificate') {
+    const format = safeText(extraNotes?.k_chart_format || extraNotes?.chart_format, 'digital_printable').toLowerCase();
+    return format === 'digital_printable' || format === 'digital' || format === 'digital_only';
+  }
+
+  if (type === 'memorial_print') {
+    const format = safeText(extraNotes?.k_memorial_format || extraNotes?.memorial_format, 'canvas').toLowerCase();
+    return format === 'digital' || format === 'digital_only' || format === 'digital_printable';
+  }
+
+  return false;
+};
+
+const sendDigitalKeepsakeEmail = async ({ order, reading, extraNotes, copy, assetUrl }) => {
+  const to =
+    safeText(extraNotes?.k_ship_email) ||
+    safeText(reading?.customers?.email);
+  if (!to) {
+    throw new Error('Missing customer email for digital keepsake delivery.');
+  }
+
+  const customerName = [safeText(reading?.customers?.first_name), safeText(reading?.customers?.last_name)]
+    .filter(Boolean)
+    .join(' ')
+    .trim() || 'there';
+  const petName = safeText(reading?.pets?.name);
+  const keepsakeLabel = KEEP_TYPES[safeText(order?.keepsake_type)]?.label || 'digital keepsake';
+  const title = safeText(copy?.title) || keepsakeLabel;
+  const overlayText = safeText(copy?.overlay_text);
+  const noteText = safeText(copy?.back_text || copy?.subtitle || extraNotes?.keepsake_notes);
+
+  const subject = petName
+    ? `Your Pawollie Sense digital ${keepsakeLabel} for ${petName}`
+    : `Your Pawollie Sense digital ${keepsakeLabel}`;
+
+  const text = [
+    `Hi ${customerName},`,
+    '',
+    `Your digital ${keepsakeLabel} is ready${petName ? ` for ${petName}` : ''}.`,
+    title ? `Title: ${title}` : '',
+    overlayText ? `Message: ${overlayText}` : '',
+    noteText ? `Notes: ${noteText}` : '',
+    '',
+    `Download link: ${assetUrl}`,
+    '',
+    'With care,',
+    'Pawollie Sense'
+  ].filter(Boolean).join('\n');
+
+  const html = `
+    <div style="font-family: Helvetica, Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+      <p>Hi ${escapeHtml(customerName)},</p>
+      <p>Your digital <strong>${escapeHtml(keepsakeLabel)}</strong> is ready${petName ? ` for <strong>${escapeHtml(petName)}</strong>` : ''}.</p>
+      <p><strong>${escapeHtml(title)}</strong></p>
+      ${overlayText ? `<p>${escapeHtml(overlayText)}</p>` : ''}
+      ${noteText ? `<p>${escapeHtml(noteText)}</p>` : ''}
+      <p style="margin: 16px 0;">
+        <a href="${escapeHtml(assetUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 14px;background:#1f4e5f;color:#fff;border-radius:8px;text-decoration:none;">View or Download Your Keepsake</a>
+      </p>
+      <p>If the button does not open, use this link:<br/><a href="${escapeHtml(assetUrl)}">${escapeHtml(assetUrl)}</a></p>
+      <p>With care,<br/>Pawollie Sense</p>
+    </div>
+  `;
+
+  const readingId = safeText(reading?.id);
+  const customerId = safeText(reading?.customer_id);
+  const keepsakeOrderId = safeText(order?.id);
+
+  const sendResult = await sendCustomEmail({
+    to,
+    subject,
+    text,
+    html,
+    tags: [
+      readingId ? { name: 'reading_id', value: readingId } : null,
+      customerId ? { name: 'customer_id', value: customerId } : null,
+      keepsakeOrderId ? { name: 'keepsake_order_id', value: keepsakeOrderId } : null,
+      { name: 'keepsake_type', value: safeText(order?.keepsake_type) || 'unknown' }
+    ].filter(Boolean)
+  });
+
+  return {
+    to,
+    provider: sendResult?.provider || null,
+    emailId: sendResult?.emailId || null
+  };
+};
+
 const parseGeneratedCopy = (value) => {
   if (!value) return null;
   if (typeof value === 'object') return value;
@@ -796,13 +897,38 @@ const approveKeepsakeOrder = async ({ order, reading }) => {
     throw new Error('Cannot approve without generated asset URL. Generate or upload asset first.');
   }
 
+  if (isDigitalOnlyKeepsake({ order, extraNotes })) {
+    const delivery = await sendDigitalKeepsakeEmail({
+      order,
+      reading,
+      extraNotes,
+      copy,
+      assetUrl
+    });
+
+    await patchKeepsakeOrder(order.id, {
+      status: 'completed',
+      generated_copy: JSON.stringify(copy),
+      generated_asset_url: assetUrl,
+      shopify_payload: {
+        delivery: 'digital_email',
+        email_to: delivery.to,
+        email_provider: delivery.provider,
+        email_id: delivery.emailId
+      },
+      last_error: null,
+      completed_at: new Date().toISOString()
+    });
+    return { status: 'completed', delivery: 'digital_email' };
+  }
+
   if (safeText(order?.shopify_draft_order_id)) {
     await patchKeepsakeOrder(order.id, {
       status: 'shopify_draft_created',
       last_error: null,
       completed_at: order?.completed_at || new Date().toISOString()
     });
-    return;
+    return { status: 'shopify_draft_created', delivery: 'shopify' };
   }
 
   const draft = await createShopifyDraftOrder({
@@ -825,6 +951,7 @@ const approveKeepsakeOrder = async ({ order, reading }) => {
     last_error: null,
     completed_at: new Date().toISOString()
   });
+  return { status: 'shopify_draft_created', delivery: 'shopify' };
 };
 
 exports.handler = async (event) => {
@@ -892,8 +1019,10 @@ exports.handler = async (event) => {
           readingCache.set(currentReadingId, reading);
         }
 
+        let finalStatus = action === 'approve' ? 'shopify_draft_created' : 'awaiting_approval';
         if (action === 'approve') {
-          await approveKeepsakeOrder({ order, reading });
+          const approveResult = await approveKeepsakeOrder({ order, reading });
+          finalStatus = safeText(approveResult?.status, finalStatus);
         } else {
           await generateKeepsakeOrder({
             order,
@@ -907,7 +1036,7 @@ exports.handler = async (event) => {
           keepsake_order_id: orderId,
           reading_id: currentReadingId,
           keepsake_type: type,
-          status: action === 'approve' ? 'shopify_draft_created' : 'awaiting_approval'
+          status: finalStatus
         });
         succeeded += 1;
       } catch (error) {

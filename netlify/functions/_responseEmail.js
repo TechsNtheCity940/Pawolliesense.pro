@@ -251,5 +251,7 @@ const sendReadingResponseEmail = async (reading) => {
 };
 
 module.exports = {
-  sendReadingResponseEmail
+  sendReadingResponseEmail,
+  sendCustomEmail: async ({ to, subject, html, text, tags }) =>
+    sendEmail({ to, subject, html, text, tags })
 };
