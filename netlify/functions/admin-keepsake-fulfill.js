@@ -60,6 +60,13 @@ const requiredEnv = (name) => {
 
 const safeText = (value, fallback = '') => String(value || '').trim() || fallback;
 
+const normalizeTag = (value, maxLength = 40) =>
+  safeText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, maxLength);
+
 const supabaseRequest = async ({
   path,
   method = 'GET',
@@ -643,7 +650,11 @@ const createShopifyDraftOrder = async ({ order, reading, extraNotes, assetUrl, c
       email: email || undefined,
       line_items: [lineItem],
       note: `Pawollie keepsake fulfillment (${type}) for reading ${safeText(reading?.id)}`,
-      tags: `pawollie-keepsake,${type},reading:${safeText(reading?.id)}`,
+      tags: [
+        normalizeTag('pawollie-keepsake'),
+        normalizeTag(`keep-${type}`),
+        normalizeTag(`rd-${safeText(reading?.id).replace(/-/g, '')}`)
+      ].filter(Boolean).join(','),
       note_attributes: [
         { name: 'reading_id', value: safeText(reading?.id) },
         { name: 'keepsake_order_id', value: safeText(order?.id) },
