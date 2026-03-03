@@ -308,6 +308,30 @@ export async function updateReadingNotes(
   }
 }
 
+export async function updateReadingAdminAction(input: {
+  readingId: string;
+  action: 'apply_free_discount' | 'cancel_order' | 'refund_order';
+  cancelReason?: string;
+  refundReason?: string;
+  captureId?: string;
+}): Promise<{ data: Reading | null; error: Error | null }> {
+  try {
+    const response = await fetch('/api/admin/reading/update', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to update order.');
+    }
+    return { data: result?.data ?? null, error: null };
+  } catch (error: any) {
+    return { data: null, error: error as Error };
+  }
+}
+
 export async function sendReadingResponseEmail(
   readingId: string,
   force = false
@@ -507,6 +531,8 @@ export async function updateKeepsakeOrder(input: {
   generatedCopy?: Record<string, any>;
   generatedAssetUrl?: string;
   keepsakeNotes?: string;
+  selectedSourceImage?: string;
+  sourceImages?: string[];
   status?: string;
 }): Promise<{ data: any | null; error: Error | null }> {
   try {

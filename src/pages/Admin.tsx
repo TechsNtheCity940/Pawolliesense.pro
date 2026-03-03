@@ -5,6 +5,7 @@ import {
   getResendEmailEvents,
   getKeepsakeOrders,
   updateReadingStatus,
+  updateReadingAdminAction,
   updateContactMessageStatus,
   updateReadingNotes,
   sendReadingResponseEmail,
@@ -47,10 +48,15 @@ const Admin: React.FC = () => {
     back_text: string;
     generated_asset_url: string;
     keepsake_notes: string;
+    selected_source_image: string;
+    source_images: string[];
   }>>({});
   const [keepsakeResult, setKeepsakeResult] = useState('');
   const [sendingAllEmails, setSendingAllEmails] = useState(false);
   const [bulkEmailResult, setBulkEmailResult] = useState<string>('');
+  const [freeDiscountChecks, setFreeDiscountChecks] = useState<Record<string, boolean>>({});
+  const [orderActionBusy, setOrderActionBusy] = useState<Record<string, boolean>>({});
+  const [orderActionResult, setOrderActionResult] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (status === 'authed') {
@@ -75,6 +81,9 @@ const Admin: React.FC = () => {
       setKeepsakeDrafts({});
       setKeepsakeResult('');
       setBulkEmailResult('');
+      setFreeDiscountChecks({});
+      setOrderActionBusy({});
+      setOrderActionResult({});
       setLoading(false);
     }
   }, [status]);
@@ -262,6 +271,77 @@ const Admin: React.FC = () => {
     }
   };
 
+  const setOrderResult = (readingId: string, message: string) => {
+    setOrderActionResult((prev) => ({ ...prev, [readingId]: message }));
+  };
+
+  const handleApplyFreeDiscount = async (readingId: string) => {
+    if (!freeDiscountChecks[readingId]) {
+      setOrderResult(readingId, 'Check the free-discount box first.');
+      return;
+    }
+    setOrderActionBusy((prev) => ({ ...prev, [readingId]: true }));
+    try {
+      const result = await updateReadingAdminAction({
+        readingId,
+        action: 'apply_free_discount'
+      });
+      if (result.error) throw result.error;
+      setOrderResult(readingId, 'Free discount applied. Order total is now $0.00.');
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to apply free discount.';
+      setOrderResult(readingId, message);
+      console.error('Free discount error:', error);
+    } finally {
+      setOrderActionBusy((prev) => ({ ...prev, [readingId]: false }));
+    }
+  };
+
+  const handleCancelOrder = async (readingId: string) => {
+    if (!window.confirm('Cancel this order?')) return;
+    const reason = window.prompt('Optional cancel reason:', '') || '';
+    setOrderActionBusy((prev) => ({ ...prev, [readingId]: true }));
+    try {
+      const result = await updateReadingAdminAction({
+        readingId,
+        action: 'cancel_order',
+        cancelReason: reason
+      });
+      if (result.error) throw result.error;
+      setOrderResult(readingId, 'Order cancelled.');
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to cancel order.';
+      setOrderResult(readingId, message);
+      console.error('Cancel order error:', error);
+    } finally {
+      setOrderActionBusy((prev) => ({ ...prev, [readingId]: false }));
+    }
+  };
+
+  const handleRefundOrder = async (readingId: string) => {
+    if (!window.confirm('Issue PayPal refund for this order?')) return;
+    const reason = window.prompt('Optional refund note to payer:', '') || '';
+    setOrderActionBusy((prev) => ({ ...prev, [readingId]: true }));
+    try {
+      const result = await updateReadingAdminAction({
+        readingId,
+        action: 'refund_order',
+        refundReason: reason
+      });
+      if (result.error) throw result.error;
+      setOrderResult(readingId, 'Refund issued and order cancelled.');
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to refund order.';
+      setOrderResult(readingId, message);
+      console.error('Refund order error:', error);
+    } finally {
+      setOrderActionBusy((prev) => ({ ...prev, [readingId]: false }));
+    }
+  };
+
   const handleRunKeepsakePipeline = async (params: {
     readingId?: string;
     keepsakeOrderId?: string;
@@ -320,7 +400,7 @@ const Admin: React.FC = () => {
 
   const handleKeepsakeDraftChange = (
     keepsakeOrderId: string,
-    field: 'title' | 'subtitle' | 'overlay_text' | 'back_text' | 'generated_asset_url' | 'keepsake_notes',
+    field: 'title' | 'subtitle' | 'overlay_text' | 'back_text' | 'generated_asset_url' | 'keepsake_notes' | 'selected_source_image',
     value: string
   ) => {
     setKeepsakeDrafts((prev) => ({
@@ -332,7 +412,29 @@ const Admin: React.FC = () => {
         back_text: prev[keepsakeOrderId]?.back_text || '',
         generated_asset_url: prev[keepsakeOrderId]?.generated_asset_url || '',
         keepsake_notes: prev[keepsakeOrderId]?.keepsake_notes || '',
+        selected_source_image: prev[keepsakeOrderId]?.selected_source_image || '',
+        source_images: Array.isArray(prev[keepsakeOrderId]?.source_images) ? prev[keepsakeOrderId].source_images : [],
         [field]: value
+      }
+    }));
+  };
+
+  const handleSelectSourceImage = (keepsakeOrderId: string, imageUrl: string) => {
+    const selected = String(imageUrl || '').trim();
+    if (!selected) return;
+    setKeepsakeDrafts((prev) => ({
+      ...prev,
+      [keepsakeOrderId]: {
+        title: prev[keepsakeOrderId]?.title || '',
+        subtitle: prev[keepsakeOrderId]?.subtitle || '',
+        overlay_text: prev[keepsakeOrderId]?.overlay_text || '',
+        back_text: prev[keepsakeOrderId]?.back_text || '',
+        generated_asset_url: selected,
+        keepsake_notes: prev[keepsakeOrderId]?.keepsake_notes || '',
+        selected_source_image: selected,
+        source_images: Array.isArray(prev[keepsakeOrderId]?.source_images)
+          ? prev[keepsakeOrderId].source_images
+          : []
       }
     }));
   };
@@ -353,6 +455,8 @@ const Admin: React.FC = () => {
         generatedCopy,
         generatedAssetUrl: draft.generated_asset_url,
         keepsakeNotes: draft.keepsake_notes,
+        selectedSourceImage: draft.selected_source_image,
+        sourceImages: draft.source_images,
         status: 'awaiting_approval'
       });
       if (result.error) {
@@ -381,7 +485,14 @@ const Admin: React.FC = () => {
       if (result.error) {
         throw result.error;
       }
-      setKeepsakeResult('Keepsake approved and sent to Shopify draft order.');
+      const status = String(result.data?.results?.[0]?.status || '').toLowerCase();
+      if (status === 'completed') {
+        setKeepsakeResult('Keepsake approved and delivered by email (digital-only).');
+      } else if (status === 'shopify_draft_created') {
+        setKeepsakeResult('Keepsake approved and sent to Shopify draft order.');
+      } else {
+        setKeepsakeResult('Keepsake approval completed.');
+      }
       await loadData();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to approve keepsake.';
@@ -489,6 +600,27 @@ const Admin: React.FC = () => {
 
     return false;
   };
+
+  const isPhysicalKeepsakeOrder = (order: any) => {
+    const type = String(order?.keepsake_type || '').toLowerCase();
+    const customization = parseJsonObject(order?.customization);
+
+    if (type === 'apparel' || type === 'tag_ornament') return true;
+    if (type === 'chart_certificate') {
+      const format = String(customization?.chart_format || customization?.k_chart_format || '').toLowerCase();
+      return !['digital_printable', 'digital', 'digital_only'].includes(format);
+    }
+    if (type === 'memorial_print') {
+      const format = String(customization?.memorial_format || customization?.k_memorial_format || '').toLowerCase();
+      return !['digital_printable', 'digital', 'digital_only'].includes(format);
+    }
+    return false;
+  };
+
+  const hasPhysicalKeepsakesForReading = (readingId: string) =>
+    keepsakeOrders
+      .filter((order) => String(order?.reading_id || '') === String(readingId || ''))
+      .some((order) => isPhysicalKeepsakeOrder(order));
 
   const getPetField = (reading: any, field: 'species' | 'breed' | 'age' | 'gender') => {
     const pet = reading?.pets || {};
@@ -766,13 +898,17 @@ const Admin: React.FC = () => {
         if (!id || next[id]) return;
         const copy = parseJsonObject(order?.generated_copy);
         const customization = parseJsonObject(order?.customization);
+        const sourceImages = getSourceImageUrls(order);
+        const selectedSource = String(customization?.selected_source_image || '');
         next[id] = {
           title: String(copy?.title || ''),
           subtitle: String(copy?.subtitle || ''),
           overlay_text: String(copy?.overlay_text || ''),
           back_text: String(copy?.back_text || ''),
           generated_asset_url: String(order?.generated_asset_url || ''),
-          keepsake_notes: String(customization?.keepsake_notes || '')
+          keepsake_notes: String(customization?.keepsake_notes || ''),
+          selected_source_image: selectedSource,
+          source_images: sourceImages
         };
         changed = true;
       });
@@ -1052,6 +1188,10 @@ const Admin: React.FC = () => {
                       const wagBookEligible = hasWagBook(reading);
                       const isSendingEmail = Boolean(sendingEmails[orderId]);
                       const emailError = emailErrors[orderId] || '';
+                      const orderBusy = Boolean(orderActionBusy[orderId]);
+                      const orderResult = orderActionResult[orderId] || '';
+                      const hasPhysicalKeepsakes = hasPhysicalKeepsakesForReading(orderId);
+                      const canApplyFreeDiscount = ['pending', 'in_progress'].includes(String(status).toLowerCase()) && !hasPhysicalKeepsakes;
 
                       return (
                         <div
@@ -1159,6 +1299,52 @@ const Admin: React.FC = () => {
                                 >
                                   {processingKeepsakes[orderId] ? 'Processing Keepsakes...' : 'Run Keepsake Pipeline'}
                                 </button>
+                                <div className="mt-4 rounded-lg border border-[#9DB5A5]/20 bg-white p-3">
+                                  <p className="font-display text-xs font-semibold text-[#2D3561] mb-2">Admin Order Actions</p>
+                                  <label className="flex items-center gap-2 font-body text-xs text-[#3A3A3A] mb-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(freeDiscountChecks[orderId])}
+                                      onChange={(event) => setFreeDiscountChecks((prev) => ({ ...prev, [orderId]: event.target.checked }))}
+                                      disabled={!canApplyFreeDiscount || orderBusy}
+                                    />
+                                    Apply free discount ($0) for AI/digital-only order
+                                  </label>
+                                  {!canApplyFreeDiscount ? (
+                                    <p className="font-body text-[11px] text-[#3A3A3A]/70 mb-2">
+                                      Free discount disabled: pending/in-progress digital-only orders only.
+                                    </p>
+                                  ) : null}
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApplyFreeDiscount(orderId)}
+                                      disabled={!canApplyFreeDiscount || orderBusy}
+                                      className="px-3 py-2 border border-[#2D3561]/30 text-[#2D3561] font-display text-xs font-semibold rounded-lg hover:bg-[#2D3561]/10 transition-colors disabled:opacity-60"
+                                    >
+                                      Apply Free Discount
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCancelOrder(orderId)}
+                                      disabled={orderBusy}
+                                      className="px-3 py-2 border border-red-300 text-red-700 font-display text-xs font-semibold rounded-lg hover:bg-red-50 transition-colors disabled:opacity-60"
+                                    >
+                                      Cancel Order
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRefundOrder(orderId)}
+                                      disabled={orderBusy}
+                                      className="px-3 py-2 border border-[#D4AF37]/50 text-[#2D3561] font-display text-xs font-semibold rounded-lg hover:bg-[#F7E8B2] transition-colors disabled:opacity-60"
+                                    >
+                                      Refund (PayPal)
+                                    </button>
+                                  </div>
+                                  {orderResult ? (
+                                    <p className="mt-2 font-body text-xs text-[#2D3561]">{orderResult}</p>
+                                  ) : null}
+                                </div>
                               </div>
                               <div>
                                 <h4 className="font-display font-semibold text-[#2D3561] mb-2">AI Reading Tools</h4>
@@ -1714,7 +1900,9 @@ const Admin: React.FC = () => {
                             overlay_text: '',
                             back_text: '',
                             generated_asset_url: String(order?.generated_asset_url || ''),
-                            keepsake_notes: ''
+                            keepsake_notes: '',
+                            selected_source_image: '',
+                            source_images: sourceImageUrls
                           };
                           return (
                             <div
@@ -1755,7 +1943,7 @@ const Admin: React.FC = () => {
                                   <p className="font-body text-xs text-[#3A3A3A]/70">
                                     Updated: {formatDate(order?.updated_at)}
                                   </p>
-                                  {order?.shopify_invoice_url ? (
+                                  {order?.shopify_invoice_url && !digitalOnly ? (
                                     <a
                                       href={order.shopify_invoice_url}
                                       target="_blank"
@@ -1804,16 +1992,22 @@ const Admin: React.FC = () => {
                                 </div>
                                 <div>
                                   <label className="font-body text-xs text-[#3A3A3A]/70">Intake source images</label>
-                                  {sourceImageUrls.length ? (
+                                  {(draft.source_images?.length || sourceImageUrls.length) ? (
                                     <div className="mt-1 grid grid-cols-2 gap-2">
-                                      {sourceImageUrls.slice(0, 6).map((url) => (
-                                        <a key={url} href={url} target="_blank" rel="noreferrer">
+                                      {(draft.source_images?.length ? draft.source_images : sourceImageUrls).slice(0, 8).map((url) => (
+                                        <button
+                                          type="button"
+                                          key={url}
+                                          onClick={() => handleSelectSourceImage(orderId, url)}
+                                          className={`text-left rounded-md ${draft.selected_source_image === url ? 'ring-2 ring-[#D4AF37]' : ''}`}
+                                          title="Use this image as the primary source for this keepsake"
+                                        >
                                           <img
                                             src={url}
                                             alt="Source"
                                             className="w-full h-24 object-cover rounded-md border border-[#9DB5A5]/20"
                                           />
-                                        </a>
+                                        </button>
                                       ))}
                                     </div>
                                   ) : (
@@ -1821,6 +2015,9 @@ const Admin: React.FC = () => {
                                       No intake images found for this reading.
                                     </div>
                                   )}
+                                  <p className="mt-2 font-body text-[11px] text-[#3A3A3A]/70">
+                                    Click an intake image to set it as the required source for remake/generation.
+                                  </p>
                                 </div>
                               </div>
                               <div className="grid md:grid-cols-2 gap-3 mt-4">
@@ -1855,6 +2052,14 @@ const Admin: React.FC = () => {
                                     rows={2}
                                     value={draft.back_text}
                                     onChange={(event) => handleKeepsakeDraftChange(orderId, 'back_text', event.target.value)}
+                                    className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
+                                  />
+                                </div>
+                                <div className="md:col-span-2">
+                                  <label className="font-body text-xs text-[#3A3A3A]/70">Primary source image URL (intake)</label>
+                                  <input
+                                    value={draft.selected_source_image}
+                                    onChange={(event) => handleKeepsakeDraftChange(orderId, 'selected_source_image', event.target.value)}
                                     className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
                                   />
                                 </div>

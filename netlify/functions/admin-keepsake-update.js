@@ -33,6 +33,17 @@ const parseJsonObject = (raw) => {
   }
 };
 
+const parseJsonArray = (raw) => {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 const supabaseRequest = async ({ path, method = 'GET', body } = {}) => {
   const url = `${requiredEnv('SUPABASE_URL')}${path}`;
   const key = requiredEnv('SUPABASE_SERVICE_ROLE_KEY');
@@ -107,6 +118,35 @@ exports.handler = async (event) => {
         ...existing,
         keepsake_notes: safeText(body.keepsakeNotes)
       };
+    }
+
+    if (typeof body.selectedSourceImage === 'string') {
+      const selectedSourceImage = safeText(body.selectedSourceImage);
+      const existing = patch.customization || parseJsonObject(current.customization);
+      patch.customization = {
+        ...existing,
+        selected_source_image: selectedSourceImage || null
+      };
+      if (selectedSourceImage && !safeText(body.generatedAssetUrl)) {
+        patch.generated_asset_url = selectedSourceImage;
+      }
+    }
+
+    if (Array.isArray(body.sourceImages)) {
+      const nextSources = body.sourceImages
+        .map((item) => safeText(item))
+        .filter(Boolean);
+      patch.source_images = nextSources;
+    }
+
+    if (patch.customization?.selected_source_image && !patch.source_images) {
+      const currentSources = parseJsonArray(current.source_images)
+        .map((item) => safeText(item))
+        .filter(Boolean);
+      const selected = safeText(patch.customization.selected_source_image);
+      if (selected && !currentSources.includes(selected)) {
+        patch.source_images = [selected, ...currentSources];
+      }
     }
 
     if (patch.status === 'awaiting_approval') {

@@ -381,7 +381,7 @@ const uploadGeneratedAsset = async ({ reading, order, image }) => {
   return { assetUrl, storagePath: rawPath };
 };
 
-const buildKeepsakePrompt = ({ order, reading, extraNotes, sourceImages }) => {
+const buildKeepsakePrompt = ({ order, reading, extraNotes, sourceImages, primarySourceImage }) => {
   const sourceImageUrls = (Array.isArray(sourceImages) ? sourceImages : [])
     .map((item) => safeText(item?.url || item))
     .filter(Boolean);
@@ -403,6 +403,9 @@ const buildKeepsakePrompt = ({ order, reading, extraNotes, sourceImages }) => {
     `Customer: ${guardianName}`,
     `Pet: ${petName}`,
     `Services purchased: ${serviceList}`,
+    primarySourceImage
+      ? `Required primary pet image URL (must represent this exact pet): ${primarySourceImage}`
+      : null,
     quote ? `Customer quote: ${quote}` : null,
     excerpt ? `Favorite excerpt: ${excerpt}` : null,
     requestNotes ? `Additional keepsake notes: ${requestNotes}` : null,
@@ -905,10 +908,21 @@ const generateKeepsakeOrder = async ({ order, reading, forceRemake = false }) =>
   const { extraNotes } = getOrderContext({ order, reading });
   const sourceImages = await getSourceImages(reading?.id);
   const sourceImageUrls = sourceImages.map((item) => safeText(item?.url)).filter(Boolean);
+  const selectedSourceImage = safeText(
+    extraNotes?.selected_source_image ||
+    parseJsonValue(order?.customization, {})?.selected_source_image
+  );
+  const validSelectedSourceImage = selectedSourceImage && sourceImageUrls.includes(selectedSourceImage)
+    ? selectedSourceImage
+    : '';
+  const primarySourceImage = validSelectedSourceImage || pickPreferredSourceImage({
+    sourceImages,
+    keepsakeType: order?.keepsake_type
+  });
 
   let copy = parseGeneratedCopy(order?.generated_copy) || buildFallbackCopy({ order, reading, extraNotes });
   if (forceRemake || !safeText(copy?.overlay_text)) {
-    const prompt = buildKeepsakePrompt({ order, reading, extraNotes, sourceImages });
+    const prompt = buildKeepsakePrompt({ order, reading, extraNotes, sourceImages, primarySourceImage });
     try {
       const aiText = await getOpenAiText({ prompt });
       const parsed = extractJsonObject(aiText);
@@ -930,10 +944,7 @@ const generateKeepsakeOrder = async ({ order, reading, forceRemake = false }) =>
 
   let generatedAssetUrl = forceRemake ? '' : safeText(order?.generated_asset_url);
   let generatedStoragePath = forceRemake ? '' : safeText(order?.generated_asset_storage_path);
-  const preferredSourceAssetUrl = pickPreferredSourceImage({
-    sourceImages,
-    keepsakeType: order?.keepsake_type
-  });
+  const preferredSourceAssetUrl = primarySourceImage;
 
   // Keep all keepsake visuals anchored to customer-uploaded images only.
   if (!generatedAssetUrl || forceRemake) {
@@ -954,6 +965,10 @@ const generateKeepsakeOrder = async ({ order, reading, forceRemake = false }) =>
     source_images: sourceImageUrls,
     generated_asset_url: generatedAssetUrl,
     generated_asset_storage_path: generatedStoragePath || null,
+    customization: {
+      ...parseJsonValue(order?.customization, {}),
+      selected_source_image: preferredSourceAssetUrl || null
+    },
     last_error: null
   });
 
