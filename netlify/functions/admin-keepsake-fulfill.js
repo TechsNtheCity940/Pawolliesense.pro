@@ -382,6 +382,9 @@ const uploadGeneratedAsset = async ({ reading, order, image }) => {
 };
 
 const buildKeepsakePrompt = ({ order, reading, extraNotes, sourceImages }) => {
+  const sourceImageUrls = (Array.isArray(sourceImages) ? sourceImages : [])
+    .map((item) => safeText(item?.url || item))
+    .filter(Boolean);
   const serviceList = Array.isArray(reading?.services) ? reading.services.join(', ') : 'unknown services';
   const petName = safeText(reading?.pets?.name, 'Pet');
   const guardianName = [reading?.customers?.first_name, reading?.customers?.last_name].filter(Boolean).join(' ').trim() || 'Guardian';
@@ -404,20 +407,23 @@ const buildKeepsakePrompt = ({ order, reading, extraNotes, sourceImages }) => {
     excerpt ? `Favorite excerpt: ${excerpt}` : null,
     requestNotes ? `Additional keepsake notes: ${requestNotes}` : null,
     requestDetails.length ? `Intake details: ${requestDetails.join(' | ')}` : null,
-    sourceImages.length ? `Reference images: ${sourceImages.slice(0, 5).join(', ')}` : null,
+    sourceImageUrls.length ? `Reference images: ${sourceImageUrls.slice(0, 5).join(', ')}` : null,
     readingText ? `Reading text: ${readingText}` : 'Reading text unavailable.'
   ].filter(Boolean).join('\n');
 };
 
 const buildImagePrompt = ({ order, reading, copy, extraNotes, sourceImages }) => {
+  const sourceImageUrls = (Array.isArray(sourceImages) ? sourceImages : [])
+    .map((item) => safeText(item?.url || item))
+    .filter(Boolean);
   const petName = safeText(reading?.pets?.name, 'Pet');
   const keepsakeType = safeText(order?.keepsake_type);
   const overlayText = safeText(copy?.overlay_text || copy?.subtitle || copy?.title);
   const style = safeText(extraNotes?.k_style || copy?.style_hint || 'celestial, clean, premium');
   const notes = safeText(extraNotes?.keepsake_notes);
   const requestDetails = getKeepsakeRequestDetails(extraNotes);
-  const sourceHint = sourceImages.length
-    ? `Reference these image URLs for likeness and color cues: ${sourceImages.slice(0, 6).join(', ')}.`
+  const sourceHint = sourceImageUrls.length
+    ? `Reference these image URLs for likeness and color cues: ${sourceImageUrls.slice(0, 6).join(', ')}.`
     : '';
 
   return [
@@ -450,8 +456,36 @@ const getSourceImages = async (readingId) => {
     path: `/rest/v1/uploaded_files?reading_id=eq.${encodeURIComponent(readingId)}&select=storage_path,photo_type&order=created_at.asc&limit=30`
   });
   return (Array.isArray(rows) ? rows : [])
-    .map((row) => safeText(row?.storage_path))
-    .filter(Boolean);
+    .map((row) => ({
+      url: safeText(row?.storage_path),
+      photo_type: safeText(row?.photo_type).toLowerCase()
+    }))
+    .filter((row) => row.url)
+    .filter((row) => !row.photo_type.startsWith('keepsake_asset_'));
+};
+
+const pickPreferredSourceImage = ({ sourceImages, keepsakeType }) => {
+  const normalizedType = safeText(keepsakeType).toLowerCase();
+  const list = Array.isArray(sourceImages) ? sourceImages : [];
+  if (!list.length) return '';
+
+  const byType = (target) => list.find((item) => safeText(item?.photo_type).toLowerCase() === target);
+  const firstNonOwner = list.find((item) => !safeText(item?.photo_type).toLowerCase().startsWith('owner_'));
+
+  const preferredOrder = normalizedType === 'memorial_print'
+    ? ['pet_photo', 'intake_photo']
+    : normalizedType === 'chart_certificate'
+      ? ['pet_photo', 'intake_photo']
+      : normalizedType === 'apparel'
+        ? ['pet_photo', 'intake_photo']
+        : ['pet_photo', 'intake_photo'];
+
+  for (const type of preferredOrder) {
+    const hit = byType(type);
+    if (hit?.url) return hit.url;
+  }
+
+  return safeText(firstNonOwner?.url || list[0]?.url);
 };
 
 const getReading = async (readingId) => {
@@ -870,6 +904,7 @@ const parseGeneratedCopy = (value) => {
 const generateKeepsakeOrder = async ({ order, reading, forceRemake = false }) => {
   const { extraNotes } = getOrderContext({ order, reading });
   const sourceImages = await getSourceImages(reading?.id);
+  const sourceImageUrls = sourceImages.map((item) => safeText(item?.url)).filter(Boolean);
 
   let copy = parseGeneratedCopy(order?.generated_copy) || buildFallbackCopy({ order, reading, extraNotes });
   if (forceRemake || !safeText(copy?.overlay_text)) {
@@ -895,36 +930,28 @@ const generateKeepsakeOrder = async ({ order, reading, forceRemake = false }) =>
 
   let generatedAssetUrl = forceRemake ? '' : safeText(order?.generated_asset_url);
   let generatedStoragePath = forceRemake ? '' : safeText(order?.generated_asset_storage_path);
+  const preferredSourceAssetUrl = pickPreferredSourceImage({
+    sourceImages,
+    keepsakeType: order?.keepsake_type
+  });
 
+  // Keep all keepsake visuals anchored to customer-uploaded images only.
   if (!generatedAssetUrl || forceRemake) {
-    const imagePrompt = buildImagePrompt({ order, reading, copy, extraNotes, sourceImages });
-    try {
-      const image = await getOpenAiImage({ prompt: imagePrompt });
-      if (image) {
-        if (image.type === 'url') {
-          generatedAssetUrl = safeText(image.url);
-        } else {
-          const uploaded = await uploadGeneratedAsset({ reading, order, image });
-          generatedAssetUrl = uploaded.assetUrl;
-          generatedStoragePath = uploaded.storagePath;
-        }
-      }
-    } catch (error) {
-      console.warn('Keepsake image generation failed', error.message || error);
-    }
+    generatedAssetUrl = preferredSourceAssetUrl;
+    generatedStoragePath = null;
+  } else if (!sourceImageUrls.includes(generatedAssetUrl)) {
+    generatedAssetUrl = preferredSourceAssetUrl;
+    generatedStoragePath = null;
   }
 
-  if (!generatedAssetUrl && sourceImages.length) {
-    generatedAssetUrl = sourceImages[0];
-  }
   if (!generatedAssetUrl) {
-    throw new Error('No keepsake asset available. Upload pet photos and retry.');
+    throw new Error('No customer-uploaded source image found. Upload pet photos in intake and retry.');
   }
 
   await patchKeepsakeOrder(order.id, {
     status: 'awaiting_approval',
     generated_copy: JSON.stringify(copy),
-    source_images: sourceImages,
+    source_images: sourceImageUrls,
     generated_asset_url: generatedAssetUrl,
     generated_asset_storage_path: generatedStoragePath || null,
     last_error: null

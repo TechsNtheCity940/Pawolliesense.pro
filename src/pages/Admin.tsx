@@ -459,6 +459,37 @@ const Admin: React.FC = () => {
     }
   };
 
+  const getSourceImageUrls = (order: any) => {
+    const raw = order?.source_images;
+    if (Array.isArray(raw)) {
+      return raw.map((item) => String(item || '').trim()).filter(Boolean);
+    }
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.map((item) => String(item || '').trim()).filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const isDigitalOnlyKeepsakeOrder = (order: any) => {
+    const type = String(order?.keepsake_type || '').toLowerCase();
+    const customization = parseJsonObject(order?.customization);
+
+    if (type === 'chart_certificate') {
+      const format = String(customization?.chart_format || customization?.k_chart_format || '').toLowerCase();
+      return ['digital_printable', 'digital', 'digital_only'].includes(format);
+    }
+
+    if (type === 'memorial_print') {
+      const format = String(customization?.memorial_format || customization?.k_memorial_format || '').toLowerCase();
+      return ['digital_printable', 'digital', 'digital_only'].includes(format);
+    }
+
+    return false;
+  };
+
   const getPetField = (reading: any, field: 'species' | 'breed' | 'age' | 'gender') => {
     const pet = reading?.pets || {};
     const extra = parseAdditionalNotes(pet.additional_notes);
@@ -1669,6 +1700,8 @@ const Admin: React.FC = () => {
                         {keepsakePipelineOrders.map((order) => {
                           const orderId = String(order?.id || '');
                           const reading = order?.readings || {};
+                          const sourceImageUrls = getSourceImageUrls(order);
+                          const digitalOnly = isDigitalOnlyKeepsakeOrder(order);
                           const customerName = [reading?.customers?.first_name, reading?.customers?.last_name]
                             .filter(Boolean)
                             .join(' ')
@@ -1746,8 +1779,48 @@ const Admin: React.FC = () => {
                                     disabled={Boolean(approvingKeepsakes[orderId])}
                                     className="px-3 py-2 bg-[#D4AF37] text-[#2D3561] font-display text-xs font-semibold rounded-lg hover:bg-[#E5C158] transition-colors disabled:opacity-70"
                                   >
-                                    {approvingKeepsakes[orderId] ? 'Approving...' : 'Approve for Shopify'}
+                                    {approvingKeepsakes[orderId]
+                                      ? 'Approving...'
+                                      : (digitalOnly ? 'Approve & Email Digital' : 'Approve for Shopify')}
                                   </button>
+                                </div>
+                              </div>
+                              <div className="grid md:grid-cols-2 gap-3 mt-4">
+                                <div>
+                                  <label className="font-body text-xs text-[#3A3A3A]/70">Preview asset</label>
+                                  {draft.generated_asset_url ? (
+                                    <a href={draft.generated_asset_url} target="_blank" rel="noreferrer" className="block mt-1">
+                                      <img
+                                        src={draft.generated_asset_url}
+                                        alt="Keepsake preview"
+                                        className="w-full max-h-64 object-contain rounded-lg border border-[#9DB5A5]/20 bg-white"
+                                      />
+                                    </a>
+                                  ) : (
+                                    <div className="mt-1 rounded-lg border border-dashed border-[#9DB5A5]/30 px-3 py-6 text-center font-body text-xs text-[#3A3A3A]/70">
+                                      No preview asset yet. Run Generate/Remake first.
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <label className="font-body text-xs text-[#3A3A3A]/70">Intake source images</label>
+                                  {sourceImageUrls.length ? (
+                                    <div className="mt-1 grid grid-cols-2 gap-2">
+                                      {sourceImageUrls.slice(0, 6).map((url) => (
+                                        <a key={url} href={url} target="_blank" rel="noreferrer">
+                                          <img
+                                            src={url}
+                                            alt="Source"
+                                            className="w-full h-24 object-cover rounded-md border border-[#9DB5A5]/20"
+                                          />
+                                        </a>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="mt-1 rounded-lg border border-dashed border-[#9DB5A5]/30 px-3 py-6 text-center font-body text-xs text-[#3A3A3A]/70">
+                                      No intake images found for this reading.
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <div className="grid md:grid-cols-2 gap-3 mt-4">
