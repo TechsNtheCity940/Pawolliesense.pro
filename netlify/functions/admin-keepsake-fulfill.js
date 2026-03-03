@@ -36,6 +36,7 @@ const KEEP_TYPES = {
 const FINISHED_STATUSES = new Set(['shopify_draft_created', 'submitted', 'fulfilled', 'completed']);
 const GENERATE_STATUSES = new Set(['queued', 'failed', 'processing', 'asset_ready', 'awaiting_approval']);
 const APPROVE_STATUSES = new Set(['awaiting_approval', 'asset_ready', 'shopify_draft_created', 'submitted']);
+const AI_VISUAL_KEEP_TYPES = new Set(['chart_certificate', 'memorial_print', 'apparel']);
 const SHOPIFY_TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
 const DEFAULT_SHOPIFY_TOKEN_TTL_SEC = 24 * 60 * 60;
 
@@ -302,6 +303,56 @@ const getOpenAiText = async ({ prompt }) => {
   return safeText(chunks.join('\n'));
 };
 
+const getPetReferenceSummary = async ({ sourceImageUrl, petName }) => {
+  const apiKey = safeText(process.env.OPENAI_API_KEY);
+  if (!apiKey || !safeText(sourceImageUrl)) return '';
+  const model = safeText(process.env.OPENAI_READING_MODEL, 'gpt-4o-mini');
+
+  const response = await fetch(OPENAI_RESPONSES_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      input: [{
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: `Analyze this pet image${petName ? ` of ${petName}` : ''}. Return a concise visual descriptor focused on breed/type cues, coat pattern, colors, markings, eye color, ear shape, muzzle, and proportions. Keep under 120 words.`
+          },
+          {
+            type: 'input_image',
+            image_url: sourceImageUrl
+          }
+        ]
+      }],
+      max_output_tokens: 220
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = data?.error?.message || 'Unable to analyze source pet image.';
+    throw new Error(message);
+  }
+
+  const direct = safeText(data?.output_text);
+  if (direct) return direct;
+
+  const chunks = [];
+  (data?.output || []).forEach((item) => {
+    (item?.content || []).forEach((content) => {
+      if (content?.type === 'output_text' && content?.text) {
+        chunks.push(String(content.text));
+      }
+    });
+  });
+  return safeText(chunks.join('\n'));
+};
+
 const getOpenAiImage = async ({ prompt }) => {
   const apiKey = safeText(process.env.OPENAI_API_KEY);
   if (!apiKey) return null;
@@ -415,7 +466,7 @@ const buildKeepsakePrompt = ({ order, reading, extraNotes, sourceImages, primary
   ].filter(Boolean).join('\n');
 };
 
-const buildImagePrompt = ({ order, reading, copy, extraNotes, sourceImages }) => {
+const buildImagePrompt = ({ order, reading, copy, extraNotes, sourceImages, primarySourceImage, petReferenceSummary }) => {
   const sourceImageUrls = (Array.isArray(sourceImages) ? sourceImages : [])
     .map((item) => safeText(item?.url || item))
     .filter(Boolean);
@@ -428,10 +479,19 @@ const buildImagePrompt = ({ order, reading, copy, extraNotes, sourceImages }) =>
   const sourceHint = sourceImageUrls.length
     ? `Reference these image URLs for likeness and color cues: ${sourceImageUrls.slice(0, 6).join(', ')}.`
     : '';
+  const typeKey = safeText(order?.keepsake_type).toLowerCase();
+  const visualInstruction = typeKey === 'chart_certificate'
+    ? 'Create a celestial star-chart composition with constellation layout and a stylized cartoon pet that matches the exact same animal from the reference image.'
+    : typeKey === 'apparel'
+      ? 'Create an apparel-safe composition with one stylized cartoon pet matching the same animal from the reference image.'
+      : 'Create a memorial art composition with one stylized cartoon pet matching the same animal from the reference image.';
 
   return [
     `Design a print-ready ${keepsakeType.replace(/_/g, ' ')} artwork for Pawollie Sense.`,
+    visualInstruction,
     `Subject: beloved pet named ${petName}.`,
+    primarySourceImage ? `Use this as the required primary pet reference image: ${primarySourceImage}.` : '',
+    petReferenceSummary ? `Pet visual descriptor (must match): ${petReferenceSummary}.` : '',
     overlayText ? `Include this exact short text: "${overlayText}".` : '',
     `Visual style: ${style}. Keep composition clean, high contrast, premium typography.`,
     notes ? `Customer notes: ${notes}.` : '',
@@ -945,18 +1005,62 @@ const generateKeepsakeOrder = async ({ order, reading, forceRemake = false }) =>
   let generatedAssetUrl = forceRemake ? '' : safeText(order?.generated_asset_url);
   let generatedStoragePath = forceRemake ? '' : safeText(order?.generated_asset_storage_path);
   const preferredSourceAssetUrl = primarySourceImage;
+  const keepType = safeText(order?.keepsake_type).toLowerCase();
+  const shouldGenerateVisualAsset = AI_VISUAL_KEEP_TYPES.has(keepType);
 
-  // Keep all keepsake visuals anchored to customer-uploaded images only.
-  if (!generatedAssetUrl || forceRemake) {
-    generatedAssetUrl = preferredSourceAssetUrl;
-    generatedStoragePath = null;
-  } else if (!sourceImageUrls.includes(generatedAssetUrl)) {
-    generatedAssetUrl = preferredSourceAssetUrl;
-    generatedStoragePath = null;
+  if (shouldGenerateVisualAsset) {
+    if (!primarySourceImage) {
+      throw new Error('No customer-uploaded source image found. Upload pet photos in intake and retry.');
+    }
+
+    const needsFreshAsset = forceRemake || !generatedAssetUrl || sourceImageUrls.includes(generatedAssetUrl);
+    if (needsFreshAsset) {
+      let petReferenceSummary = '';
+      try {
+        petReferenceSummary = await getPetReferenceSummary({
+          sourceImageUrl: primarySourceImage,
+          petName: safeText(reading?.pets?.name)
+        });
+      } catch (error) {
+        console.warn('Source image analysis failed', error.message || error);
+      }
+
+      const imagePrompt = buildImagePrompt({
+        order,
+        reading,
+        copy,
+        extraNotes,
+        sourceImages,
+        primarySourceImage,
+        petReferenceSummary
+      });
+
+      const image = await getOpenAiImage({ prompt: imagePrompt });
+      if (!image) {
+        throw new Error('AI image generation returned no output for this keepsake.');
+      }
+      if (image.type === 'url') {
+        generatedAssetUrl = safeText(image.url);
+        generatedStoragePath = null;
+      } else {
+        const uploaded = await uploadGeneratedAsset({ reading, order, image });
+        generatedAssetUrl = uploaded.assetUrl;
+        generatedStoragePath = uploaded.storagePath;
+      }
+    }
+  } else {
+    // Non-visual keepsakes stay tied to source intake uploads.
+    if (!generatedAssetUrl || forceRemake) {
+      generatedAssetUrl = preferredSourceAssetUrl;
+      generatedStoragePath = null;
+    } else if (!sourceImageUrls.includes(generatedAssetUrl)) {
+      generatedAssetUrl = preferredSourceAssetUrl;
+      generatedStoragePath = null;
+    }
   }
 
   if (!generatedAssetUrl) {
-    throw new Error('No customer-uploaded source image found. Upload pet photos in intake and retry.');
+    throw new Error('No valid keepsake asset available. Upload pet photos and run generate again.');
   }
 
   await patchKeepsakeOrder(order.id, {

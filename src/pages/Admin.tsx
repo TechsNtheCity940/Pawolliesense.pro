@@ -1955,6 +1955,14 @@ const Admin: React.FC = () => {
                                   ) : null}
                                   <button
                                     type="button"
+                                    onClick={() => handleRunKeepsakePipeline({ keepsakeOrderId: orderId, action: 'generate', force: true })}
+                                    disabled={Boolean(processingKeepsakes[processingKey])}
+                                    className="px-3 py-2 border border-[#2D3561]/30 text-[#2D3561] font-display text-xs font-semibold rounded-lg hover:bg-[#2D3561]/10 transition-colors disabled:opacity-70"
+                                  >
+                                    {processingKeepsakes[processingKey] ? 'Generating...' : 'Generate'}
+                                  </button>
+                                  <button
+                                    type="button"
                                     onClick={() => handleRunKeepsakePipeline({ keepsakeOrderId: orderId, action: 'remake', force: true })}
                                     disabled={Boolean(processingKeepsakes[processingKey])}
                                     className="px-3 py-2 bg-[#2D3561] text-white font-display text-xs font-semibold rounded-lg hover:bg-[#3D4A7A] transition-colors disabled:opacity-70"
