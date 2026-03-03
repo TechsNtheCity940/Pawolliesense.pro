@@ -429,7 +429,7 @@ const Admin: React.FC = () => {
         subtitle: prev[keepsakeOrderId]?.subtitle || '',
         overlay_text: prev[keepsakeOrderId]?.overlay_text || '',
         back_text: prev[keepsakeOrderId]?.back_text || '',
-        generated_asset_url: selected,
+        generated_asset_url: prev[keepsakeOrderId]?.generated_asset_url || '',
         keepsake_notes: prev[keepsakeOrderId]?.keepsake_notes || '',
         selected_source_image: selected,
         source_images: Array.isArray(prev[keepsakeOrderId]?.source_images)

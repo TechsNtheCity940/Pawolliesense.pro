@@ -127,9 +127,6 @@ exports.handler = async (event) => {
         ...existing,
         selected_source_image: selectedSourceImage || null
       };
-      if (selectedSourceImage && !safeText(body.generatedAssetUrl)) {
-        patch.generated_asset_url = selectedSourceImage;
-      }
     }
 
     if (Array.isArray(body.sourceImages)) {

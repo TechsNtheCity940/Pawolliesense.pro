@@ -7,7 +7,7 @@ const {
 const { sendCustomEmail } = require('./_responseEmail');
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
-const OPENAI_IMAGES_URL = 'https://api.openai.com/v1/images/generations';
+const OPENAI_IMAGE_EDITS_URL = 'https://api.openai.com/v1/images/edits';
 const STORAGE_BUCKET = process.env.SUPABASE_KEEPSAKE_BUCKET || 'pet-photos';
 
 const KEEP_TYPES = {
@@ -353,40 +353,111 @@ const getPetReferenceSummary = async ({ sourceImageUrl, petName }) => {
   return safeText(chunks.join('\n'));
 };
 
-const getOpenAiImage = async ({ prompt }) => {
-  const apiKey = safeText(process.env.OPENAI_API_KEY);
-  if (!apiKey) return null;
-  const model = safeText(process.env.OPENAI_IMAGE_MODEL, 'gpt-image-1');
-  const size = safeText(process.env.OPENAI_IMAGE_SIZE, '1024x1024');
+const mimeToExt = (mimeType) => {
+  const mime = safeText(mimeType).toLowerCase();
+  if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
+  if (mime.includes('webp')) return 'webp';
+  if (mime.includes('gif')) return 'gif';
+  return 'png';
+};
 
-  const response = await fetch(OPENAI_IMAGES_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model,
-      size,
-      prompt
-    })
-  });
+const normalizeImageMime = (mimeType) => {
+  const mime = safeText(mimeType).toLowerCase().split(';')[0];
+  if (mime === 'image/jpeg' || mime === 'image/jpg') return 'image/jpeg';
+  if (mime === 'image/webp') return 'image/webp';
+  if (mime === 'image/gif') return 'image/gif';
+  return 'image/png';
+};
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message = data?.error?.message || 'OpenAI image generation failed.';
-    throw new Error(message);
+const getSourceImageBlob = async ({ sourceImageUrl }) => {
+  const url = safeText(sourceImageUrl);
+  if (!url) {
+    throw new Error('Source image is required for keepsake image edits.');
   }
 
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Unable to download source image (${response.status}).`);
+  }
+
+  const contentType = normalizeImageMime(response.headers.get('content-type'));
+  if (!contentType.startsWith('image/')) {
+    throw new Error('Source asset is not an image.');
+  }
+
+  const bytes = await response.arrayBuffer();
+  if (!bytes.byteLength) {
+    throw new Error('Source image download was empty.');
+  }
+
+  const ext = mimeToExt(contentType);
+  const blob = new Blob([bytes], { type: contentType });
+  const fileName = `source_${Date.now()}.${ext}`;
+
+  return { blob, fileName };
+};
+
+const parseImageResponse = (data = {}, fallbackMimeType = 'image/png') => {
   const first = Array.isArray(data?.data) ? data.data[0] : null;
   if (!first) return null;
   if (first.b64_json) {
-    return { type: 'b64', mimeType: 'image/png', data: first.b64_json };
+    return { type: 'b64', mimeType: normalizeImageMime(fallbackMimeType), data: first.b64_json };
   }
   if (first.url) {
     return { type: 'url', url: first.url };
   }
   return null;
+};
+
+const getOpenAiImageEdit = async ({ prompt, sourceImageUrl }) => {
+  const apiKey = safeText(process.env.OPENAI_API_KEY);
+  if (!apiKey) return null;
+
+  const model = safeText(process.env.OPENAI_IMAGE_MODEL, 'gpt-image-1');
+  const size = safeText(process.env.OPENAI_IMAGE_SIZE, '1024x1024');
+  const outputFormat = safeText(process.env.OPENAI_IMAGE_OUTPUT_FORMAT, 'png').toLowerCase();
+  const quality = safeText(process.env.OPENAI_IMAGE_QUALITY, 'high').toLowerCase();
+  const inputFidelity = safeText(process.env.OPENAI_IMAGE_INPUT_FIDELITY, 'high').toLowerCase();
+  const outputMimeType = outputFormat === 'jpeg' ? 'image/jpeg' : outputFormat === 'webp' ? 'image/webp' : 'image/png';
+  const { blob, fileName } = await getSourceImageBlob({ sourceImageUrl });
+
+  const runEdit = async ({ includeInputFidelity }) => {
+    const form = new FormData();
+    form.append('model', model);
+    form.append('prompt', prompt);
+    form.append('size', size);
+    form.append('output_format', outputFormat);
+    form.append('quality', quality);
+    form.append('image', blob, fileName);
+    if (includeInputFidelity && inputFidelity) {
+      form.append('input_fidelity', inputFidelity);
+    }
+
+    const response = await fetch(OPENAI_IMAGE_EDITS_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: form
+    });
+    const data = await response.json().catch(() => ({}));
+    return { response, data };
+  };
+
+  let result = await runEdit({ includeInputFidelity: true });
+  if (!result.response.ok) {
+    const message = safeText(result.data?.error?.message || result.data?.message);
+    if (message && /input_fidelity/i.test(message)) {
+      result = await runEdit({ includeInputFidelity: false });
+    }
+  }
+
+  if (!result.response.ok) {
+    const message = result.data?.error?.message || 'OpenAI image edit failed.';
+    throw new Error(message);
+  }
+
+  return parseImageResponse(result.data, outputMimeType);
 };
 
 const uploadGeneratedAsset = async ({ reading, order, image }) => {
@@ -481,14 +552,15 @@ const buildImagePrompt = ({ order, reading, copy, extraNotes, sourceImages, prim
     : '';
   const typeKey = safeText(order?.keepsake_type).toLowerCase();
   const visualInstruction = typeKey === 'chart_certificate'
-    ? 'Create a celestial star-chart composition with constellation layout and a stylized cartoon pet that matches the exact same animal from the reference image.'
+    ? 'Transform the provided source image into a stylized cartoon likeness of the same pet, then place that pet in a celestial star-chart certificate composition with constellation layout.'
     : typeKey === 'apparel'
-      ? 'Create an apparel-safe composition with one stylized cartoon pet matching the same animal from the reference image.'
-      : 'Create a memorial art composition with one stylized cartoon pet matching the same animal from the reference image.';
+      ? 'Transform the provided source image into a stylized cartoon likeness of the same pet and build an apparel-safe composition around it.'
+      : 'Transform the provided source image into a stylized cartoon likeness of the same pet and build a memorial art composition around it.';
 
   return [
     `Design a print-ready ${keepsakeType.replace(/_/g, ' ')} artwork for Pawollie Sense.`,
     visualInstruction,
+    'This is an image-edit task, not a fresh character generation. Keep the exact pet identity from the source image.',
     `Subject: beloved pet named ${petName}.`,
     primarySourceImage ? `Use this as the required primary pet reference image: ${primarySourceImage}.` : '',
     petReferenceSummary ? `Pet visual descriptor (must match): ${petReferenceSummary}.` : '',
@@ -1035,9 +1107,12 @@ const generateKeepsakeOrder = async ({ order, reading, forceRemake = false }) =>
         petReferenceSummary
       });
 
-      const image = await getOpenAiImage({ prompt: imagePrompt });
+      const image = await getOpenAiImageEdit({
+        prompt: imagePrompt,
+        sourceImageUrl: primarySourceImage
+      });
       if (!image) {
-        throw new Error('AI image generation returned no output for this keepsake.');
+        throw new Error('AI image edit returned no output for this keepsake.');
       }
       if (image.type === 'url') {
         generatedAssetUrl = safeText(image.url);
@@ -1071,7 +1146,7 @@ const generateKeepsakeOrder = async ({ order, reading, forceRemake = false }) =>
     generated_asset_storage_path: generatedStoragePath || null,
     customization: {
       ...parseJsonValue(order?.customization, {}),
-      selected_source_image: preferredSourceAssetUrl || null
+      selected_source_image: validSelectedSourceImage || preferredSourceAssetUrl || null
     },
     last_error: null
   });
