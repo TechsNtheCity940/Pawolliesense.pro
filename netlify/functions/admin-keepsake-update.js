@@ -120,6 +120,14 @@ exports.handler = async (event) => {
       };
     }
 
+    if (typeof body.customImagePrompt === 'string') {
+      const existing = patch.customization || parseJsonObject(current.customization);
+      patch.customization = {
+        ...existing,
+        custom_image_prompt: safeText(body.customImagePrompt)
+      };
+    }
+
     if (typeof body.selectedSourceImage === 'string') {
       const selectedSourceImage = safeText(body.selectedSourceImage);
       const existing = patch.customization || parseJsonObject(current.customization);

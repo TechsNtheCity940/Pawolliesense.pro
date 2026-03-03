@@ -508,6 +508,8 @@ export async function runKeepsakeFulfillment(input: {
   force?: boolean;
   limit?: number;
   action?: 'generate' | 'remake' | 'approve';
+  selectedSourceImage?: string;
+  customImagePrompt?: string;
 } = {}): Promise<{ data: any | null; error: Error | null }> {
   try {
     const response = await fetch('/api/admin/keepsake-fulfill', {
@@ -532,6 +534,7 @@ export async function updateKeepsakeOrder(input: {
   generatedAssetUrl?: string;
   keepsakeNotes?: string;
   selectedSourceImage?: string;
+  customImagePrompt?: string;
   sourceImages?: string[];
   status?: string;
 }): Promise<{ data: any | null; error: Error | null }> {

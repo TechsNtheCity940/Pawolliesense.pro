@@ -546,6 +546,7 @@ const buildImagePrompt = ({ order, reading, copy, extraNotes, sourceImages, prim
   const overlayText = safeText(copy?.overlay_text || copy?.subtitle || copy?.title);
   const style = safeText(extraNotes?.k_style || copy?.style_hint || 'celestial, clean, premium');
   const notes = safeText(extraNotes?.keepsake_notes);
+  const customImagePrompt = safeText(extraNotes?.custom_image_prompt || extraNotes?.k_custom_image_prompt);
   const requestDetails = getKeepsakeRequestDetails(extraNotes);
   const sourceHint = sourceImageUrls.length
     ? `Reference these image URLs for likeness and color cues: ${sourceImageUrls.slice(0, 6).join(', ')}.`
@@ -567,6 +568,7 @@ const buildImagePrompt = ({ order, reading, copy, extraNotes, sourceImages, prim
     overlayText ? `Include this exact short text: "${overlayText}".` : '',
     `Visual style: ${style}. Keep composition clean, high contrast, premium typography.`,
     notes ? `Customer notes: ${notes}.` : '',
+    customImagePrompt ? `Admin prompt guidance (apply directly): ${customImagePrompt}.` : '',
     requestDetails.length ? `Intake requirements: ${requestDetails.join('; ')}.` : '',
     sourceHint,
     'No logos or watermarks. High-quality, production-ready, 1:1 composition.'
@@ -1036,11 +1038,18 @@ const parseGeneratedCopy = (value) => {
   }
 };
 
-const generateKeepsakeOrder = async ({ order, reading, forceRemake = false }) => {
-  const { extraNotes } = getOrderContext({ order, reading });
+const generateKeepsakeOrder = async ({ order, reading, forceRemake = false, adminOverrides = {} }) => {
+  const overrideSourceImage = safeText(adminOverrides?.selectedSourceImage);
+  const overrideCustomImagePrompt = safeText(adminOverrides?.customImagePrompt);
+  const { extraNotes: baseExtraNotes } = getOrderContext({ order, reading });
+  const extraNotes = {
+    ...baseExtraNotes,
+    ...(overrideCustomImagePrompt ? { custom_image_prompt: overrideCustomImagePrompt } : {})
+  };
   const sourceImages = await getSourceImages(reading?.id);
   const sourceImageUrls = sourceImages.map((item) => safeText(item?.url)).filter(Boolean);
   const selectedSourceImage = safeText(
+    overrideSourceImage ||
     extraNotes?.selected_source_image ||
     parseJsonValue(order?.customization, {})?.selected_source_image
   );
@@ -1146,7 +1155,8 @@ const generateKeepsakeOrder = async ({ order, reading, forceRemake = false }) =>
     generated_asset_storage_path: generatedStoragePath || null,
     customization: {
       ...parseJsonValue(order?.customization, {}),
-      selected_source_image: validSelectedSourceImage || preferredSourceAssetUrl || null
+      selected_source_image: validSelectedSourceImage || preferredSourceAssetUrl || null,
+      custom_image_prompt: overrideCustomImagePrompt || safeText(extraNotes?.custom_image_prompt) || null
     },
     last_error: null
   });
@@ -1244,6 +1254,10 @@ exports.handler = async (event) => {
     if (!allowedActions.has(action)) {
       return jsonResponse(400, { ok: false, error: 'Invalid action. Use generate, remake, or approve.' });
     }
+    const adminOverrides = {
+      selectedSourceImage: safeText(body?.selectedSourceImage),
+      customImagePrompt: safeText(body?.customImagePrompt)
+    };
     const force = Boolean(body?.force);
     const limitRaw = Number(body?.limit || 6);
     const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(limitRaw, 30)) : 6;
@@ -1292,7 +1306,8 @@ exports.handler = async (event) => {
           await generateKeepsakeOrder({
             order,
             reading,
-            forceRemake: action === 'remake' || force
+            forceRemake: action === 'remake' || force,
+            adminOverrides: keepsakeOrderId ? adminOverrides : {}
           });
         }
         await updateReadingKeepsakeStatus(currentReadingId);

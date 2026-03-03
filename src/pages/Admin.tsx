@@ -49,6 +49,7 @@ const Admin: React.FC = () => {
     generated_asset_url: string;
     keepsake_notes: string;
     selected_source_image: string;
+    custom_image_prompt: string;
     source_images: string[];
   }>>({});
   const [keepsakeResult, setKeepsakeResult] = useState('');
@@ -349,14 +350,40 @@ const Admin: React.FC = () => {
     action?: 'generate' | 'remake' | 'approve';
   } = {}) => {
     const key = params.keepsakeOrderId || params.readingId || 'bulk';
+    const action = params.action || 'generate';
     setProcessingKeepsakes((prev) => ({ ...prev, [key]: true }));
     setKeepsakeResult('');
     try {
+      const orderDraft = params.keepsakeOrderId ? keepsakeDrafts[params.keepsakeOrderId] : null;
+
+      if (params.keepsakeOrderId && action !== 'approve' && orderDraft) {
+        const saveResult = await updateKeepsakeOrder({
+          keepsakeOrderId: params.keepsakeOrderId,
+          generatedCopy: {
+            title: orderDraft.title,
+            subtitle: orderDraft.subtitle,
+            overlay_text: orderDraft.overlay_text,
+            back_text: orderDraft.back_text
+          },
+          generatedAssetUrl: orderDraft.generated_asset_url,
+          keepsakeNotes: orderDraft.keepsake_notes,
+          selectedSourceImage: orderDraft.selected_source_image,
+          customImagePrompt: orderDraft.custom_image_prompt,
+          sourceImages: orderDraft.source_images,
+          status: 'awaiting_approval'
+        });
+        if (saveResult.error) {
+          throw saveResult.error;
+        }
+      }
+
       const result = await runKeepsakeFulfillment({
         readingId: params.readingId,
         keepsakeOrderId: params.keepsakeOrderId,
         force: params.force ?? false,
-        action: params.action || 'generate',
+        action,
+        selectedSourceImage: orderDraft?.selected_source_image || '',
+        customImagePrompt: orderDraft?.custom_image_prompt || '',
         limit: 12
       });
       if (result.error) {
@@ -400,7 +427,7 @@ const Admin: React.FC = () => {
 
   const handleKeepsakeDraftChange = (
     keepsakeOrderId: string,
-    field: 'title' | 'subtitle' | 'overlay_text' | 'back_text' | 'generated_asset_url' | 'keepsake_notes' | 'selected_source_image',
+    field: 'title' | 'subtitle' | 'overlay_text' | 'back_text' | 'generated_asset_url' | 'keepsake_notes' | 'selected_source_image' | 'custom_image_prompt',
     value: string
   ) => {
     setKeepsakeDrafts((prev) => ({
@@ -413,6 +440,7 @@ const Admin: React.FC = () => {
         generated_asset_url: prev[keepsakeOrderId]?.generated_asset_url || '',
         keepsake_notes: prev[keepsakeOrderId]?.keepsake_notes || '',
         selected_source_image: prev[keepsakeOrderId]?.selected_source_image || '',
+        custom_image_prompt: prev[keepsakeOrderId]?.custom_image_prompt || '',
         source_images: Array.isArray(prev[keepsakeOrderId]?.source_images) ? prev[keepsakeOrderId].source_images : [],
         [field]: value
       }
@@ -432,6 +460,7 @@ const Admin: React.FC = () => {
         generated_asset_url: prev[keepsakeOrderId]?.generated_asset_url || '',
         keepsake_notes: prev[keepsakeOrderId]?.keepsake_notes || '',
         selected_source_image: selected,
+        custom_image_prompt: prev[keepsakeOrderId]?.custom_image_prompt || '',
         source_images: Array.isArray(prev[keepsakeOrderId]?.source_images)
           ? prev[keepsakeOrderId].source_images
           : []
@@ -456,6 +485,7 @@ const Admin: React.FC = () => {
         generatedAssetUrl: draft.generated_asset_url,
         keepsakeNotes: draft.keepsake_notes,
         selectedSourceImage: draft.selected_source_image,
+        customImagePrompt: draft.custom_image_prompt,
         sourceImages: draft.source_images,
         status: 'awaiting_approval'
       });
@@ -908,6 +938,7 @@ const Admin: React.FC = () => {
           generated_asset_url: String(order?.generated_asset_url || ''),
           keepsake_notes: String(customization?.keepsake_notes || ''),
           selected_source_image: selectedSource,
+          custom_image_prompt: String(customization?.custom_image_prompt || ''),
           source_images: sourceImages
         };
         changed = true;
@@ -1902,6 +1933,7 @@ const Admin: React.FC = () => {
                             generated_asset_url: String(order?.generated_asset_url || ''),
                             keepsake_notes: '',
                             selected_source_image: '',
+                            custom_image_prompt: '',
                             source_images: sourceImageUrls
                           };
                           return (
@@ -2068,6 +2100,16 @@ const Admin: React.FC = () => {
                                   <input
                                     value={draft.selected_source_image}
                                     onChange={(event) => handleKeepsakeDraftChange(orderId, 'selected_source_image', event.target.value)}
+                                    className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
+                                  />
+                                </div>
+                                <div className="md:col-span-2">
+                                  <label className="font-body text-xs text-[#3A3A3A]/70">Custom image prompt guidance (optional)</label>
+                                  <textarea
+                                    rows={3}
+                                    value={draft.custom_image_prompt}
+                                    onChange={(event) => handleKeepsakeDraftChange(orderId, 'custom_image_prompt', event.target.value)}
+                                    placeholder="Example: Keep the pet's exact white chest patch and floppy left ear; place pet in a teal/navy star chart with cleaner typography."
                                     className="mt-1 w-full rounded-lg border border-[#9DB5A5]/30 px-3 py-2 font-body text-sm focus:outline-none focus:border-[#D4AF37]"
                                   />
                                 </div>
